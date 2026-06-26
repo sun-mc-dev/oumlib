@@ -15,6 +15,7 @@ public final class SubcommandBuilder {
 
     private final List<Argument<?>> arguments = new ArrayList<>();
     private final List<String> aliases = new ArrayList<>();
+    private final List<SubcommandBuilder> subcommands = new ArrayList<>();
     private String label;
     private String permission;
     private Permission permissionObject;
@@ -40,7 +41,7 @@ public final class SubcommandBuilder {
     }
 
     @CheckReturnValue
-    @Deprecated(since = "1.0.5", forRemoval = false)
+    @Deprecated(since = "1.0.5")
     public @NonNull SubcommandBuilder permission(@NonNull String permission) {
         this.permission = permission;
         return this;
@@ -56,6 +57,15 @@ public final class SubcommandBuilder {
     @CheckReturnValue
     public @NonNull SubcommandBuilder argument(@NonNull Argument<?> argument) {
         arguments.add(argument);
+        return this;
+    }
+
+    @Contract("_ -> this")
+    @CheckReturnValue
+    public @NonNull SubcommandBuilder subcommand(@NonNull Consumer<@NonNull SubcommandBuilder> configurer) {
+        SubcommandBuilder sub = new SubcommandBuilder();
+        configurer.accept(sub);
+        subcommands.add(sub);
         return this;
     }
 
@@ -82,6 +92,13 @@ public final class SubcommandBuilder {
     @Unmodifiable
     public List<@NonNull Argument<?>> arguments() {
         return List.copyOf(arguments);
+    }
+
+    @Contract(pure = true)
+    @NonNull
+    @Unmodifiable
+    public List<@NonNull SubcommandBuilder> subcommands() {
+        return List.copyOf(subcommands);
     }
 
     public @Nullable Consumer<@NonNull CommandContext> executor() {
