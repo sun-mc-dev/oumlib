@@ -1,6 +1,7 @@
 package dev.oum.oumlib.config;
 
 import dev.oum.oumlib.OumLib;
+import dev.oum.oumlib.scheduler.Scheduler;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.jetbrains.annotations.Contract;
@@ -12,10 +13,6 @@ import java.io.IOException;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.RecordComponent;
 import java.lang.reflect.Type;
-import java.nio.file.FileSystems;
-import java.nio.file.StandardWatchEventKinds;
-import java.nio.file.WatchKey;
-import java.nio.file.WatchService;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -26,7 +23,7 @@ public final class ConfigManager<T extends Record & ConfigSection> {
     private final String fileName;
     private final Supplier<T> defaults;
     private final Class<T> type;
-    private T current;
+    private volatile T current;
     private Consumer<T> reloadCallback;
     private ConfigMigrationRegistry migrationRegistry;
 
@@ -236,29 +233,16 @@ public final class ConfigManager<T extends Record & ConfigSection> {
         if (!dir.exists()) {
             dir.mkdirs();
         }
-        try {
-            WatchService ws = FileSystems.getDefault().newWatchService();
-            dir.toPath().register(ws, StandardWatchEventKinds.ENTRY_MODIFY);
-            Thread.ofVirtual().start(() -> {
-                while (!Thread.currentThread().isInterrupted()) {
-                    try {
-                        WatchKey key = ws.take();
-                        boolean relevant = key.pollEvents().stream()
-                                .anyMatch(e -> e.context().toString().equals(fileName));
-                        key.reset();
-                        if (relevant) {
-                            current = load();
-                            if (reloadCallback != null) reloadCallback.accept(current);
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                }
-            });
-        } catch (IOException e) {
-            OumLib.logError("Could not watch " + fileName + " for changes.", e);
-        }
+        ConfigWatcher.watch(dir.toPath(), fileName, this::handleFileChange);
         return this;
+    }
+
+    private void handleFileChange() {
+        T loaded = load();
+        current = loaded;
+        if (reloadCallback != null) {
+            Scheduler.run(() -> reloadCallback.accept(loaded));
+        }
     }
 
     public T get() {

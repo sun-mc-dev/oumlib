@@ -15,11 +15,13 @@ import java.lang.reflect.RecordComponent;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 public final class Database {
 
     private final HikariDataSource dataSource;
+    private final Map<Class<?>, RowMapper<?>> mapperCache = new ConcurrentHashMap<>();
     private long slowQueryThresholdMs = 50;
 
     private Database(@NonNull HikariConfig config) {
@@ -140,6 +142,29 @@ public final class Database {
         return sb.toString();
     }
 
+    private static @NonNull String toSnakeCase(@NonNull String camel) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < camel.length(); i++) {
+            char c = camel.charAt(i);
+            if (Character.isUpperCase(c)) {
+                sb.append('_').append(Character.toLowerCase(c));
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    private static @NonNull Set<String> columnLabels(@NonNull ResultSet rs) throws SQLException {
+        ResultSetMetaData md = rs.getMetaData();
+        int columns = md.getColumnCount();
+        Set<String> labels = new HashSet<>(columns * 2);
+        for (int i = 1; i <= columns; i++) {
+            labels.add(md.getColumnLabel(i));
+        }
+        return labels;
+    }
+
     private static int parseVersion(@NonNull String filename) {
         try {
             int underscoreIdx = filename.indexOf("__");
@@ -197,7 +222,7 @@ public final class Database {
                 int affected = stmt.executeUpdate();
                 long elapsed = System.currentTimeMillis() - start;
                 if (elapsed > slowQueryThresholdMs) {
-                    OumLib.logger().warning("SLOW UPDATE QUERY (" + elapsed + "ms): " + sql);
+                    OumLib.logWarning("SLOW UPDATE QUERY (" + elapsed + "ms): " + sql);
                 }
                 return affected;
             } catch (SQLException e) {
@@ -231,7 +256,7 @@ public final class Database {
                     }
                     long elapsed = System.currentTimeMillis() - start;
                     if (elapsed > slowQueryThresholdMs) {
-                        OumLib.logger().warning("SLOW SELECT QUERY (" + elapsed + "ms): " + sql);
+                        OumLib.logWarning("SLOW SELECT QUERY (" + elapsed + "ms): " + sql);
                     }
                     return list;
                 }
@@ -257,7 +282,7 @@ public final class Database {
                     }
                     long elapsed = System.currentTimeMillis() - start;
                     if (elapsed > slowQueryThresholdMs) {
-                        OumLib.logger().warning("SLOW SELECT QUERY (" + elapsed + "ms): " + sql);
+                        OumLib.logWarning("SLOW SELECT QUERY (" + elapsed + "ms): " + sql);
                     }
                     return list;
                 }
@@ -269,46 +294,77 @@ public final class Database {
 
     @CheckReturnValue
     public <T> @NonNull Promise<List<T>> executeQuery(@NonNull String sql, @NonNull Class<T> type, Object... params) {
-        return executeQuery(sql, rs -> {
+        return executeQuery(sql, reflectiveMapper(type), params);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> @NonNull RowMapper<T> reflectiveMapper(@NonNull Class<T> type) {
+        return (RowMapper<T>) mapperCache.computeIfAbsent(type, Database::buildMapper);
+    }
+
+    private static @NonNull RowMapper<?> buildMapper(@NonNull Class<?> type) {
+        if (type.isRecord()) {
+            RecordComponent[] components = type.getRecordComponents();
+            Class<?>[] paramTypes = new Class<?>[components.length];
+            for (int i = 0; i < components.length; i++) {
+                paramTypes[i] = components[i].getType();
+            }
+            Constructor<?> ctor;
             try {
-                if (type.isRecord()) {
-                    RecordComponent[] components = type.getRecordComponents();
-                    Class<?>[] paramTypes = new Class<?>[components.length];
+                ctor = type.getDeclaredConstructor(paramTypes);
+                ctor.setAccessible(true);
+            } catch (NoSuchMethodException e) {
+                throw new IllegalStateException("No canonical constructor for record " + type.getName(), e);
+            }
+            return rs -> {
+                try {
+                    Set<String> available = columnLabels(rs);
                     Object[] args = new Object[components.length];
                     for (int i = 0; i < components.length; i++) {
-                        RecordComponent comp = components[i];
-                        paramTypes[i] = comp.getType();
-                        args[i] = getValueFromResultSet(rs, comp.getName(), comp.getType());
-                    }
-                    Constructor<T> ctor = type.getDeclaredConstructor(paramTypes);
-                    ctor.setAccessible(true);
-                    return ctor.newInstance(args);
-                } else {
-                    T instance = type.getDeclaredConstructor().newInstance();
-                    ResultSetMetaData md = rs.getMetaData();
-                    int columns = md.getColumnCount();
-                    for (int i = 1; i <= columns; i++) {
-                        String label = md.getColumnLabel(i);
-                        try {
-                            Field field = type.getDeclaredField(label);
-                            field.setAccessible(true);
-                            field.set(instance, getValueFromResultSet(rs, label, field.getType()));
-                        } catch (NoSuchFieldException ignored) {
-                            String camel = toCamelCase(label);
-                            try {
-                                Field field = type.getDeclaredField(camel);
-                                field.setAccessible(true);
-                                field.set(instance, getValueFromResultSet(rs, label, field.getType()));
-                            } catch (NoSuchFieldException ignored2) {
-                            }
+                        String name = components[i].getName();
+                        String label = available.contains(name) ? name
+                                : (available.contains(toSnakeCase(name)) ? toSnakeCase(name) : null);
+                        if (label == null) {
+                            OumLib.logDebug("Unmapped record component '" + name + "' for " + type.getName());
+                            args[i] = null;
+                        } else {
+                            args[i] = getValueFromResultSet(rs, label, components[i].getType());
                         }
                     }
-                    return instance;
+                    return ctor.newInstance(args);
+                } catch (ReflectiveOperationException e) {
+                    throw new SQLException("Failed to map row to record " + type.getName(), e);
                 }
-            } catch (Exception e) {
+            };
+        }
+
+        Map<String, Field> fields = new HashMap<>();
+        for (Field field : type.getDeclaredFields()) {
+            field.setAccessible(true);
+            fields.put(field.getName(), field);
+        }
+        return rs -> {
+            try {
+                Object instance = type.getDeclaredConstructor().newInstance();
+                ResultSetMetaData md = rs.getMetaData();
+                int columns = md.getColumnCount();
+                for (int i = 1; i <= columns; i++) {
+                    String label = md.getColumnLabel(i);
+                    Field field = fields.get(label);
+                    if (field == null) {
+                        field = fields.get(toCamelCase(label));
+                    }
+                    if (field == null) {
+                        OumLib.logDebug("Unmapped column '" + label + "' for " + type.getName());
+                        continue;
+                    }
+                    field.set(instance, getValueFromResultSet(rs, label, field.getType()));
+                }
+                return instance;
+            } catch (ReflectiveOperationException e) {
                 throw new SQLException("Failed to map row to class " + type.getName(), e);
             }
-        }, params);
+        };
     }
 
     @CheckReturnValue
@@ -326,7 +382,7 @@ public final class Database {
                 int[] results = stmt.executeBatch();
                 long elapsed = System.currentTimeMillis() - start;
                 if (elapsed > slowQueryThresholdMs) {
-                    OumLib.logger().warning("SLOW BATCH QUERY (" + elapsed + "ms): " + sql);
+                    OumLib.logWarning("SLOW BATCH QUERY (" + elapsed + "ms): " + sql);
                 }
                 return results;
             } catch (SQLException e) {
@@ -348,7 +404,7 @@ public final class Database {
                     conn.commit();
                     long elapsed = System.currentTimeMillis() - start;
                     if (elapsed > slowQueryThresholdMs) {
-                        OumLib.logger().warning("SLOW TRANSACTION (" + elapsed + "ms)");
+                        OumLib.logWarning("SLOW TRANSACTION (" + elapsed + "ms)");
                     }
                     return result;
                 } catch (Throwable t) {

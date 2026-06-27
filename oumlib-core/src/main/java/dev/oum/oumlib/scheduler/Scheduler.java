@@ -8,14 +8,31 @@ import org.jspecify.annotations.NonNull;
 import java.time.Duration;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Supplier;
 
 public final class Scheduler {
 
     private static final Set<TaskGroup> managedGroups = ConcurrentHashMap.newKeySet();
     private static SchedulerAdapter adapter;
+    private static volatile ExecutorService virtualExecutor;
 
     private Scheduler() {
+    }
+
+    private static ExecutorService virtualExecutor() {
+        ExecutorService exec = virtualExecutor;
+        if (exec == null || exec.isShutdown()) {
+            synchronized (Scheduler.class) {
+                if (virtualExecutor == null || virtualExecutor.isShutdown()) {
+                    virtualExecutor = Executors.newThreadPerTaskExecutor(
+                            Thread.ofVirtual().name("oumlib-virtual-", 0).factory());
+                }
+                exec = virtualExecutor;
+            }
+        }
+        return exec;
     }
 
     public static void initialize(SchedulerAdapter a) {
@@ -63,7 +80,7 @@ public final class Scheduler {
     }
 
     public static void runVirtual(Runnable task) {
-        Thread.ofVirtual().start(task);
+        virtualExecutor().execute(task);
     }
 
     @CheckReturnValue
@@ -146,5 +163,10 @@ public final class Scheduler {
     public static void shutdownAll() {
         managedGroups.stream().filter(TaskGroup::isManaged).forEach(TaskGroup::cancelAll);
         managedGroups.clear();
+        ExecutorService exec = virtualExecutor;
+        if (exec != null) {
+            exec.shutdown();
+            virtualExecutor = null;
+        }
     }
 }
