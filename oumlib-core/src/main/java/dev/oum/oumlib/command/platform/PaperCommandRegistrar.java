@@ -64,12 +64,22 @@ public final class PaperCommandRegistrar implements CommandRegistrar {
             String subPerm = sub.permission();
             subLiteral.requires(source -> source.getSender().hasPermission(subPerm));
         }
-        attachArguments(subLiteral, sub.arguments(), sub.executor(), builder);
+
+        for (SubcommandBuilder child : sub.subcommands()) {
+            subLiteral.then(buildSubNode(child, child.label(), builder));
+            for (String alias : child.aliases()) {
+                subLiteral.then(buildSubNode(child, alias, builder));
+            }
+        }
+
+        if (sub.executor() != null) {
+            attachArguments(subLiteral, sub.arguments(), sub.executor(), builder);
+        }
         return subLiteral;
     }
 
     private void attachArguments(
-            LiteralArgumentBuilder<CommandSourceStack> node,
+            @NonNull LiteralArgumentBuilder<CommandSourceStack> node,
             @NonNull List<Argument<?>> args,
             Consumer<CommandContext> exec,
             CommandBuilder builder

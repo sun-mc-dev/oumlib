@@ -6,6 +6,7 @@ import com.velocitypowered.api.proxy.ProxyServer;
 import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier;
 import dev.oum.oumlib.command.Argument;
 import dev.oum.oumlib.command.CommandContext;
+import dev.oum.oumlib.config.ConfigWatcher;
 import dev.oum.oumlib.event.EventBus;
 import dev.oum.oumlib.event.platform.PaperEventBus;
 import dev.oum.oumlib.event.platform.VelocityEventBus;
@@ -174,6 +175,13 @@ public final class OumLib {
     public static void shutdown() {
         Scheduler.shutdownAll();
         MenuRegistry.shutdown();
+        ConfigWatcher.shutdown();
+        plugin = null;
+        proxyServer = null;
+        velocityPlugin = null;
+        presetRegistry = null;
+        placeholderRegistry = null;
+        initialized = false;
     }
 
     public static @NonNull Logger logger() {

@@ -5,7 +5,7 @@
 [![](https://img.shields.io/badge/Java-21+-orange?style=for-the-badge&logo=openjdk)](https://adoptium.net/)
 [![](https://img.shields.io/badge/Folia-Compatible-gold?style=for-the-badge)](https://github.com/PaperMC/Folia)
 
-OumLib is a lightweight, utility-centric library designed for Minecraft servers (Paper/Spigot) and proxy networks (Velocity). Built around Java 21 virtual threads, it provides modern, compile-safe, and thread-safe abstractions to eliminate boilerplate code.
+OumLib is a lightweight, utility-centric library designed for Minecraft servers (Paper/Spigot) and proxy networks (Velocity). Built around Java 21 virtual threads, it provides modern, type-safe, and thread-aware abstractions to eliminate boilerplate code.
 
 OumLib is designed to be shaded and relocated directly into your plugin JAR.
 
@@ -25,7 +25,7 @@ OumLib is designed to be shaded and relocated directly into your plugin JAR.
 | **Visual Effects**   | Particle pathways: bezier curves, lines, helices             | **[Visual Effects](docs/effects.md)**      |
 | **Display Entities** | Fluent transforms and DisplayBuilder controls                | **[Display Entities](docs/entities.md)**   |
 | **Text & PAPI**      | Kyori MiniMessage presets, placeholder hooks                 | **[Text & Placeholders](docs/text.md)**    |
-| **Database**         | Non-blocking database connectors for SQLite and MySQL        | **[Database](docs/database.md)**           |
+| **Database**         | Asynchronous database connectors for SQLite and MySQL        | **[Database](docs/database.md)**           |
 | **Plugin Bridges**   | Auto-hooks for Economy, Permissions, Nexo and CustomItems    | **[Bridges](docs/bridges.md)**             |
 | **General Utils**    | PDC wrappers, duration parses, location serializing          | **[Utilities](docs/utilities.md)**         |
 | **Web Hookers**      | Asynchronous HTTP requests and Discord webhook builders      | **[Web & Discord](docs/web.md)**           |
@@ -176,7 +176,7 @@ public final class ProfileShopPlugin extends JavaPlugin {
                 }
 
                 int newBalance = balance - config.get().itemPrice();
-                db.executeUpdate("INSERT INTO economy (uuid, balance) VALUES (?, ?) ON DUPLICATE KEY UPDATE balance = ?", 
+                db.executeUpdate("INSERT INTO economy (uuid, balance) VALUES (?, ?) ON CONFLICT(uuid) DO UPDATE SET balance = ?", 
                     click.player().getUniqueId().toString(), newBalance, newBalance);
 
                 Text.send(click.player(), "<green>Purchased successfully!</green>");

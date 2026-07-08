@@ -68,7 +68,17 @@ public final class VelocityCommandRegistrar implements CommandRegistrar {
             String subPerm = sub.permission();
             subLiteral.requires(source -> source.hasPermission(subPerm));
         }
-        attachArguments(subLiteral, sub.arguments(), sub.executor(), builder);
+
+        for (SubcommandBuilder child : sub.subcommands()) {
+            subLiteral.then(buildSubNode(child, child.label(), builder));
+            for (String alias : child.aliases()) {
+                subLiteral.then(buildSubNode(child, alias, builder));
+            }
+        }
+
+        if (sub.executor() != null) {
+            attachArguments(subLiteral, sub.arguments(), sub.executor(), builder);
+        }
         return subLiteral;
     }
 

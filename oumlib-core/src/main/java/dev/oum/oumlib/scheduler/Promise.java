@@ -4,6 +4,8 @@ import org.jetbrains.annotations.Contract;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -49,7 +51,7 @@ public final class Promise<T> {
 
     public static <U> @NonNull Promise<U> supplyVirtual(@NonNull Supplier<U> supplier) {
         CompletableFuture<U> fut = new CompletableFuture<>();
-        Thread.ofVirtual().start(() -> {
+        Scheduler.runVirtual(() -> {
             try {
                 fut.complete(supplier.get());
             } catch (Throwable t) {
@@ -61,7 +63,7 @@ public final class Promise<T> {
 
     public static @NonNull Promise<Void> runVirtual(@NonNull Runnable runnable) {
         CompletableFuture<Void> fut = new CompletableFuture<>();
-        Thread.ofVirtual().start(() -> {
+        Scheduler.runVirtual(() -> {
             try {
                 runnable.run();
                 fut.complete(null);
@@ -72,8 +74,48 @@ public final class Promise<T> {
         return new Promise<>(fut);
     }
 
+    public static <U> @NonNull Promise<List<U>> all(@NonNull List<Promise<U>> promises) {
+        CompletableFuture<?>[] futures = promises.stream()
+                .map(Promise::toCompletableFuture)
+                .toArray(CompletableFuture[]::new);
+        CompletableFuture<List<U>> combined = CompletableFuture.allOf(futures).thenApply(ignored -> {
+            List<U> results = new ArrayList<>(promises.size());
+            for (Promise<U> promise : promises) {
+                results.add(promise.toCompletableFuture().join());
+            }
+            return results;
+        });
+        return new Promise<>(combined);
+    }
+
     public <U> @NonNull Promise<U> map(@NonNull Function<T, U> mapper) {
         return new Promise<>(future.thenApply(mapper));
+    }
+
+    public <U> @NonNull Promise<U> flatMap(@NonNull Function<T, Promise<U>> mapper) {
+        return new Promise<>(future.thenCompose(value -> mapper.apply(value).toCompletableFuture()));
+    }
+
+    public @NonNull Promise<T> exceptionally(@NonNull Function<Throwable, T> recover) {
+        return new Promise<>(future.exceptionally(recover));
+    }
+
+    public @NonNull Promise<T> exceptionallySync(@NonNull Function<Throwable, T> recover) {
+        CompletableFuture<T> next = new CompletableFuture<>();
+        future.whenComplete((val, err) -> {
+            if (err == null) {
+                next.complete(val);
+            } else {
+                Scheduler.run(() -> {
+                    try {
+                        next.complete(recover.apply(err));
+                    } catch (Throwable t) {
+                        next.completeExceptionally(t);
+                    }
+                });
+            }
+        });
+        return new Promise<>(next);
     }
 
     public <U> @NonNull Promise<U> mapSync(@NonNull Function<T, U> mapper) {

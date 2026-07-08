@@ -38,6 +38,11 @@ public final class ItemBridge {
             registerProvider(new NexoProvider());
         } catch (Throwable ignored) {
         }
+
+        try {
+            registerProvider(new HeadDatabaseProvider());
+        } catch (Throwable ignored) {
+        }
     }
 
     private ItemBridge() {
