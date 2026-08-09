@@ -7,6 +7,8 @@ import org.bukkit.Location;
 import org.bukkit.Registry;
 import org.bukkit.SoundCategory;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.CheckReturnValue;
+import org.jetbrains.annotations.Contract;
 import org.jspecify.annotations.NonNull;
 
 import java.util.Collection;
@@ -31,11 +33,13 @@ public final class SoundBuilder {
         this.soundKey = Registry.SOUNDS.getKey(sound);
     }
 
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull SoundBuilder source(@NonNull Source source) {
         this.source = source;
         return this;
     }
 
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull SoundBuilder category(@NonNull SoundCategory category) {
         try {
             this.source = Source.valueOf(category.name());
@@ -45,16 +49,19 @@ public final class SoundBuilder {
         return this;
     }
 
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull SoundBuilder volume(float volume) {
         this.volume = volume;
         return this;
     }
 
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull SoundBuilder pitch(float pitch) {
         this.pitch = pitch;
         return this;
     }
 
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull SoundBuilder pitchVariance(float range) {
         this.pitchRange = range;
         return this;
@@ -67,6 +74,8 @@ public final class SoundBuilder {
         return (float) ThreadLocalRandom.current().nextDouble(min, max);
     }
 
+    @Contract("-> new")
+    @CheckReturnValue
     public net.kyori.adventure.sound.@NonNull Sound build() {
         return net.kyori.adventure.sound.Sound.sound(soundKey, source, volume, calculatePitch());
     }

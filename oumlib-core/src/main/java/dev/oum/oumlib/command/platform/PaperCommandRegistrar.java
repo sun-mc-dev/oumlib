@@ -4,7 +4,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import dev.oum.oumlib.OumLib;
 import dev.oum.oumlib.command.*;
-import dev.oum.oumlib.util.Permission;
+import dev.oum.oumlib.bridge.permission.Permission;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
@@ -137,21 +137,19 @@ public final class PaperCommandRegistrar implements CommandRegistrar {
     ) {
         var sender = source.getSender();
         CommandContext context = new CommandContext(source, sender, builder.label(), map);
-        if (builder.cooldown() != null && sender instanceof Player player) {
-            boolean bypassed;
-            if (builder.cooldownBypass() != null) {
-                bypassed = builder.cooldownBypass().test(context);
-            } else {
-                String bypassPerm = (builder.permission() != null ? builder.permission() : builder.label()) + ".bypass";
-                bypassed = player.hasPermission(bypassPerm);
+        if (sender instanceof Player player) {
+            if (builder.cooldownManager() != null && builder.cooldownDuration() != null) {
+                boolean bypassed = (builder.cooldownBypass() != null)
+                        ? builder.cooldownBypass().test(context)
+                        : player.hasPermission((builder.permission() != null ? builder.permission() : builder.label()) + ".bypass");
+                if (!bypassed && builder.cooldownManager().isOnCooldown(player.getUniqueId())) {
+                    String remaining = builder.cooldownManager().formatRemaining(player.getUniqueId());
+                    player.sendMessage(MiniMessage.miniMessage()
+                            .deserialize(builder.cooldownMessage().replace("<remaining>", remaining)));
+                    return;
+                }
+                builder.cooldownManager().apply(player.getUniqueId(), builder.cooldownDuration());
             }
-            if (!bypassed && builder.cooldown().isOnCooldown(player.getUniqueId())) {
-                long remaining = builder.cooldown().remainingSeconds(player.getUniqueId());
-                player.sendMessage(MiniMessage.miniMessage()
-                        .deserialize(builder.cooldownMessage().replace("<remaining>", String.valueOf(remaining))));
-                return;
-            }
-            builder.cooldown().set(player.getUniqueId());
         }
         try {
             exec.accept(context);

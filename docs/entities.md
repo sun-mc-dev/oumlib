@@ -1,81 +1,127 @@
-# Entity Utilities & Display Builders
+# Display Entities
 
-OumLib offers high-level entity utilities and a fluent display entity generator under the `dev.oum.oumlib.entity` package.
+`dev.oum.oumlib.entity.display` · Paper
 
 ---
 
-## Real-world Example: Holographic Stat Billboard
+## DisplayBuilder
 
-Spawn a billboard-aligned text hologram floating above an NPC's head displaying player rankings:
+Build text, item, and block display entities with a fluent API. These are real server-side entities (1.19.4+), unlike holograms which are packet-based.
+
+### Text Display
 
 ```java
-import dev.oum.oumlib.entity.DisplayBuilder;
-import org.bukkit.Color;
-import org.bukkit.Location;
-import org.bukkit.entity.Display;
-import org.bukkit.entity.TextDisplay;
+DisplayBuilder.text()
+    .location(location)
+    .text("<gold>Hello World!")
+    .backgroundColor(Color.fromARGB(128, 0, 0, 0)) // semi-transparent black
+    .billboard(Display.Billboard.CENTER)
+    .scale(1.5f, 1.5f, 1.5f)
+    .spawn();
+```
 
-public final class HologramManager {
-    public TextDisplay spawnStatsHologram(Location location) {
-        Location spawnLoc = location.clone().add(0, 2.5, 0);
-        
-        return DisplayBuilder.text(spawnLoc, "<gold>Server Leaderboards</gold>\n<gray>1. sun_mc - 1,200 points</gray>")
-            .billboard(Display.Billboard.CENTER)
-            .shadow(true)
-            .seeThrough(false)
-            .backgroundColor(Color.fromARGB(150, 0, 0, 0))
-            .scale(1.2F, 1.2F, 1.2F)
-            .spawn();
-    }
-}
+### Item Display
+
+```java
+DisplayBuilder.item()
+    .location(location)
+    .item(new ItemStack(Material.DIAMOND_SWORD))
+    .transform(ItemDisplay.ItemDisplayTransform.FIXED)
+    .billboard(Display.Billboard.VERTICAL)
+    .scale(2f, 2f, 2f)
+    .spawn();
+```
+
+### Block Display
+
+```java
+DisplayBuilder.block()
+    .location(location)
+    .block(Material.DIAMOND_BLOCK.createBlockData())
+    .scale(0.5f, 0.5f, 0.5f)
+    .spawn();
 ```
 
 ---
 
-## Real-world Example: Spinning In-Game Shop Showcase
+## Common Options
 
-Spawns a glowing, double-sized block display (e.g. Diamond Block) floating above a shop chest, rotated at a 45-degree angle:
+All display types share these:
+
+| Method                          | What it does                                |
+|:--------------------------------|:--------------------------------------------|
+| `.location(loc)`                | Where to spawn                              |
+| `.scale(x, y, z)`               | Size multiplier                             |
+| `.translation(x, y, z)`         | Offset from origin                          |
+| `.billboard(type)`              | `FIXED`, `CENTER`, `VERTICAL`, `HORIZONTAL` |
+| `.glowing(bool)`                | Glowing outline                             |
+| `.glowColor(color)`             | Glow color                                  |
+| `.shadow(radius, strength)`     | Shadow settings                             |
+| `.viewRange(float)`             | How far away players can see it             |
+| `.interpolationDuration(ticks)` | Smooth animation duration                   |
+| `.spawn()`                      | Spawns the entity and returns it            |
+
+---
+
+## Virtual Displays
+
+Packet-based displays that only specific players can see. No real entity on the server.
+
+### Virtual Text Display
 
 ```java
-import dev.oum.oumlib.entity.DisplayBuilder;
-import org.bukkit.Color;
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.entity.BlockDisplay;
+VirtualTextDisplay display = VirtualTextDisplay.create(location)
+    .text("<green>Only you can see this!")
+    .billboard(Display.Billboard.CENTER)
+    .show(player);
+```
 
-public final class ItemShowcaseManager {
-    public BlockDisplay spawnChestShowcase(Location chestLoc) {
-        Location spawnLoc = chestLoc.clone().add(-0.25, 1.2, -0.25);
-        
-        return DisplayBuilder.block(spawnLoc, Material.DIAMOND_BLOCK.createBlockData())
-            .scale(0.5F, 0.5F, 0.5F)
-            .leftRotation(0.0F, 0.382F, 0.0F, 0.924F)
-            .glowing(true)
-            .glowColor(Color.AQUA)
-            .spawn();
-    }
-}
+### Virtual Item Display
+
+```java
+VirtualItemDisplay display = VirtualItemDisplay.create(location)
+    .item(new ItemStack(Material.GOLDEN_APPLE))
+    .show(player);
+```
+
+### Virtual Block Display
+
+```java
+VirtualBlockDisplay display = VirtualBlockDisplay.create(location)
+    .block(Material.EMERALD_BLOCK.createBlockData())
+    .show(player);
+```
+
+### Update / Move / Destroy
+
+```java
+display.teleport(newLocation);
+display.destroy(player);
+display.destroyAll();
 ```
 
 ---
 
-## Entities Target Raytracing
+## Display Animations
 
-Perform entity scans or trace the exact block a player is aiming at:
+Animate display entities with interpolation:
 
 ```java
-import dev.oum.oumlib.entity.Entities;
-import org.bukkit.block.Block;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Player;
-import java.util.List;
+DisplayAnimation.animate(display)
+    .scale(2f, 2f, 2f)
+    .translation(0f, 2f, 0f)
+    .duration(20) // ticks
+    .play();
+```
 
-public final class WeaponScanner {
-    public void execute(Player player) {
-        Block targetBlock = Entities.getTargetBlock(player, 15);
-        Entity targetEntity = Entities.getTargetEntity(player, 25);
-        
-        List<Player> nearby = Entities.nearbyPlayers(player.getLocation(), 10.0);
-    }
-}
+---
+
+## Entities Helper
+
+The `Entities` utility class has helpers for working with entities:
+
+```java
+Entities.nearbyPlayers(location, 10);           // players within 10 blocks
+Entities.nearbyEntities(location, 5, type);     // entities of a type
+Entities.closestPlayer(location, 50);           // nearest player
 ```

@@ -1,127 +1,109 @@
-# Integration & Plugin Bridges
+# Bridges
 
-OumLib features classloading-safe cross-plugin integration bridges, allowing your plugins to interact with multiple economies, custom item systems, and permission managers without compile-time dependencies.
+`dev.oum.oumlib.bridge` · Paper
 
 ---
 
-## Real-world Example: VIP Rank Purchase
+## What Are Bridges?
 
-Here is a store manager that checks if a player has a primary LuckPerms group matching VIP, confirms their Vault economy points balance can cover the purchase, takes the coins, and adds the VIP group to the player:
+Bridges are wrappers around third-party plugins. They let you interact with Vault, ItemsAdder, Nexo, MMOItems, etc. through a unified API. If the plugin isn't installed, the bridge just returns defaults — no crashes.
+
+---
+
+## Economy
+
+Works with Vault and PlayerPoints.
 
 ```java
-import dev.oum.oumlib.bridge.economy.EconomyBridge;
-import dev.oum.oumlib.bridge.permission.PermissionBridge;
-import dev.oum.oumlib.text.Text;
-import org.bukkit.entity.Player;
-import org.bukkit.Bukkit;
+EconomyBridge eco = EconomyBridge.detect();
 
-public final class RankPurchaseManager {
-    public void purchaseVipRank(Player player) {
-        if (!PermissionBridge.isAvailable()) {
-            Text.send(player, "<red>Permissions system is currently offline.</red>");
-            return;
-        }
+double balance = eco.getBalance(player);
+boolean success = eco.withdraw(player, 100.0);
+eco.deposit(player, 50.0);
+boolean hasEnough = eco.has(player, 200.0);
+```
 
-        String primaryGroup = PermissionBridge.getPrimaryGroup(player.getUniqueId());
-        if (primaryGroup.equalsIgnoreCase("vip") || primaryGroup.equalsIgnoreCase("admin")) {
-            Text.send(player, "<red>You already own the VIP rank!</red>");
-            return;
-        }
+If neither Vault nor PlayerPoints is installed, all operations return safe defaults (balance = 0, withdraw = false, etc.).
 
-        double price = 5000.0;
-        double balance = EconomyBridge.balance(player);
+---
 
-        if (balance < price) {
-            Text.send(player, "<red>You need " + (price - balance) + " more coins to purchase VIP!</red>");
-            return;
-        }
+## Items
 
-        boolean success = EconomyBridge.withdraw(player, price);
-        if (success) {
-            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "lp user " + player.getName() + " parent set vip");
-            Text.send(player, "<green>Congratulations! You are now a VIP rank member.</green>");
-        } else {
-            Text.send(player, "<red>Transaction declined by payment provider.</red>");
-        }
-    }
-}
+Get items from custom item plugins using a single API:
+
+```java
+ItemStack item = ItemBridge.getItem("nexo:ruby_sword");
+ItemStack item = ItemBridge.getItem("itemsadder:custom_gem");
+ItemStack item = ItemBridge.getItem("mmoitems:SWORD:FIRE_BLADE");
+ItemStack item = ItemBridge.getItem("oraxen:amethyst_pickaxe");
+ItemStack item = ItemBridge.getItem("mythicmobs:SkeletonKingSword");
+ItemStack item = ItemBridge.getItem("headdb:12345");
+ItemStack item = ItemBridge.getItem("minecraft:diamond_sword");
+```
+
+The prefix before the `:` tells OumLib which provider to use. Supported providers:
+
+| Prefix        | Plugin                                |
+|:--------------|:--------------------------------------|
+| `nexo:`       | Nexo                                  |
+| `itemsadder:` | ItemsAdder                            |
+| `mmoitems:`   | MMOItems (format: `mmoitems:TYPE:ID`) |
+| `oraxen:`     | Oraxen                                |
+| `mythicmobs:` | MythicMobs                            |
+| `headdb:`     | HeadDatabase                          |
+| `minecraft:`  | Vanilla Minecraft                     |
+
+If the plugin isn't installed, `getItem()` returns `null`.
+
+---
+
+## Permissions
+
+Type-safe permission builder for Paper:
+
+```java
+Permission perm = Permission.builder("myplugin.admin")
+    .description("Admin access")
+    .defaultValue(PermissionDefault.OP)
+    .child("myplugin.admin.ban", true)
+    .child("myplugin.admin.kick", true)
+    .build();
+```
+
+Use with commands:
+
+```java
+CommandBuilder.create("ban")
+    .permission(perm)
+    .executes(ctx -> { /* ... */ })
+    .register();
+```
+
+### Permission Bridge
+
+Check and modify permissions at runtime:
+
+```java
+PermissionBridge.has(player, "myplugin.vip");
+PermissionBridge.addPermission(player, "myplugin.fly");
+PermissionBridge.removePermission(player, "myplugin.fly");
+
+// Group operations (requires LuckPerms or similar)
+PermissionBridge.getGroup(player);
+PermissionBridge.setGroup(player, "vip");
+PermissionBridge.addGroup(player, "donor");
+PermissionBridge.removeGroup(player, "donor");
 ```
 
 ---
 
-## Custom Item Bridging
+## Statistics Bridge
 
-Resolve `ItemStack` instances from Minecraft, ItemsAdder, Oraxen, MMOItems, MythicMobs, and Nexo dynamically:
-
-```java
-import dev.oum.oumlib.bridge.item.ItemBridge;
-import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
-import java.util.Optional;
-
-public final class CustomItemLoader {
-    public void giveCustomItems(Player player) {
-        Optional<ItemStack> nexoSword = ItemBridge.getItem("nexo:emerald_sword");
-        Optional<ItemStack> mythicKey = ItemBridge.getItem("mythicmobs:skeleton_key");
-        Optional<ItemStack> standardDiamond = ItemBridge.getItem("minecraft:diamond");
-
-        nexoSword.ifPresent(item -> player.getInventory().addItem(item));
-        mythicKey.ifPresent(item -> player.getInventory().addItem(item));
-        standardDiamond.ifPresent(item -> player.getInventory().addItem(item));
-    }
-}
-```
-
----
-
-## Registering Custom Economy Providers
-
-Register custom economy tokens or custom coin providers to the global bridge:
+Read Minecraft statistics:
 
 ```java
-import dev.oum.oumlib.bridge.economy.EconomyProvider;
-import dev.oum.oumlib.bridge.economy.EconomyBridge;
-import org.bukkit.OfflinePlayer;
-import org.jspecify.annotations.NonNull;
-
-public class CustomTokenProvider implements EconomyProvider {
-    @Override
-    public @NonNull String name() { 
-        return "customtokens"; 
-    }
-
-    @Override
-    public boolean has(@NonNull OfflinePlayer player, double amount) {
-        return getTokens(player) >= amount;
-    }
-
-    @Override
-    public boolean withdraw(@NonNull OfflinePlayer player, double amount) {
-        return modifyTokens(player, -(int) amount);
-    }
-
-    @Override
-    public boolean deposit(@NonNull OfflinePlayer player, double amount) {
-        return modifyTokens(player, (int) amount);
-    }
-
-    @Override
-    public double balance(@NonNull OfflinePlayer player) {
-        return getTokens(player);
-    }
-
-    private int getTokens(OfflinePlayer player) {
-        return 1000;
-    }
-
-    private boolean modifyTokens(OfflinePlayer player, int amount) {
-        return true;
-    }
-}
-
-public class TokenInitializer {
-    public void register() {
-        EconomyBridge.registerProvider(new CustomTokenProvider());
-    }
-}
+int blocksMined = StatisticsBridge.get(player, Statistic.MINE_BLOCK, Material.DIAMOND_ORE);
+int kills = StatisticsBridge.get(player, Statistic.KILL_ENTITY, EntityType.ZOMBIE);
+int deaths = StatisticsBridge.get(player, Statistic.DEATHS);
+int playTime = StatisticsBridge.get(player, Statistic.PLAY_ONE_MINUTE); // in ticks
 ```

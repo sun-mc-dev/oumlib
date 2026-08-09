@@ -1,6 +1,6 @@
 package dev.oum.oumlib.command;
 
-import dev.oum.oumlib.util.Permission;
+import dev.oum.oumlib.bridge.permission.Permission;
 import org.jetbrains.annotations.CheckReturnValue;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.Unmodifiable;

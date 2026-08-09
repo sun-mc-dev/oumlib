@@ -1,94 +1,90 @@
-# Visual & Sound Effects
+# Effects
 
-OumLib provides dynamic, chainable builders for playing particles and sound effects under the `dev.oum.oumlib.effect` package.
+`dev.oum.oumlib.effect` · Paper
 
 ---
 
-## Real-world Example: Level Up Helix
+## Particles
 
-Play a chime sound and render a golden spiral helix around a player whenever they level up:
+Play particles with a fluent API:
 
 ```java
-import dev.oum.oumlib.effect.Effects;
-import dev.oum.oumlib.effect.Particles;
-import dev.oum.oumlib.effect.SoundBuilder;
-import org.bukkit.Color;
-import org.bukkit.Location;
-import org.bukkit.Particle;
-import org.bukkit.Sound;
-import org.bukkit.entity.Player;
+Effects.particle(Particle.FLAME)
+    .count(20)
+    .offset(0.5, 0.5, 0.5)
+    .speed(0.1)
+    .spawn(location);
+```
 
-public final class LevelUpAnimation {
-    public void animate(Player player) {
-        Location center = player.getLocation();
-        
-        Effects.sound(Sound.ENTITY_PLAYER_LEVELUP)
-            .volume(1.0F)
-            .pitch(1.2F)
-            .play(player);
+Spawn at a player's location:
 
-        Particles.spawnHelix(
-            center,
-            1.0,
-            0.2,
-            2.0,
-            50,
-            Effects.particle(Particle.DUST).color(Color.YELLOW, 1.0F)
-        );
-    }
-}
+```java
+Effects.particle(Particle.HEART)
+    .count(5)
+    .offset(0.3, 0.5, 0.3)
+    .spawn(player.getLocation());
 ```
 
 ---
 
-## Real-world Example: Gun Bullet Tracer
-
-Draws a line of smoke particles representing a gun tracer from the player's eye location to their target hit point, playing a gunshot sound:
+## Sounds
 
 ```java
-import dev.oum.oumlib.effect.Effects;
-import dev.oum.oumlib.effect.Particles;
-import org.bukkit.Location;
-import org.bukkit.Particle;
-import org.bukkit.Sound;
-import org.bukkit.entity.Player;
+Effects.sound(Sound.ENTITY_PLAYER_LEVELUP)
+    .volume(1.0f)
+    .pitch(1.2f)
+    .play(player);
+```
 
-public final class WeaponTracer {
-    public void fireTracer(Player player, Location targetLoc) {
-        Location origin = player.getEyeLocation();
-        
-        Effects.sound(Sound.ENTITY_FIREWORK_ROCKET_BLAST)
-            .volume(0.8F)
-            .pitch(1.5F)
-            .play(origin);
+Play at a location (everyone nearby hears it):
 
-        Particles.spawnLine(
-            origin,
-            targetLoc,
-            Effects.particle(Particle.CRIT).count(1),
-            15
-        );
-    }
-}
+```java
+Effects.sound(Sound.BLOCK_NOTE_BLOCK_PLING)
+    .volume(0.8f)
+    .pitch(2.0f)
+    .play(location);
 ```
 
 ---
 
-## Static Sound & Particle Spawners
+## Particle Shapes
 
-Trigger audio files or play standard dust options using fast static shortcuts:
+### Line
+
+Draw a line of particles between two points:
 
 ```java
-import dev.oum.oumlib.effect.Particles;
-import dev.oum.oumlib.effect.Sounds;
-import org.bukkit.Color;
-import org.bukkit.Location;
-import org.bukkit.entity.Player;
+Effects.line(start, end, Particle.FLAME, 20); // 20 points along the line
+```
 
-public final class VisualShortcuts {
-    public void execute(Player player, Location location) {
-        Particles.spawnDust(location, Color.RED, 1.2F, 10);
-        Sounds.play(player, "block.note_block.pling", 1.0F, 1.2F);
-    }
-}
+### Circle
+
+```java
+Effects.circle(center, radius, Particle.ENCHANT, 30); // 30 points around the circle
+```
+
+### Helix
+
+```java
+Effects.helix(center, radius, height, Particle.FLAME, rotations, points);
+```
+
+### Bezier Curve
+
+```java
+Effects.bezier(start, control, end, Particle.FLAME, 30);
+```
+
+---
+
+## Combining
+
+Spawn multiple effects at once:
+
+```java
+Location loc = player.getLocation();
+
+Effects.sound(Sound.ENTITY_PLAYER_LEVELUP).volume(1f).pitch(1.2f).play(player);
+Effects.particle(Particle.HAPPY_VILLAGER).count(15).offset(0.5, 0.5, 0.5).spawn(loc);
+Effects.particle(Particle.FIREWORK).count(5).offset(0.2, 0.2, 0.2).speed(0.05).spawn(loc);
 ```

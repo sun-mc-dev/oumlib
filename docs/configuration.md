@@ -1,131 +1,149 @@
-# Configuration System
+# Configuration
 
-OumLib allows developers to define configuration files as Java `record` types. The library handles YAML parsing, key-merging on upgrades, custom key preservation, and filesystem monitoring.
+`dev.oum.oumlib.config` · Paper / Velocity
 
 ---
 
-## Real-world Example: Minigame Arena Config
+## How It Works
 
-Here is a configuration record for a minigame arena, utilizing comments, nested sections, and default value definitions:
+Configs are Java records that implement `ConfigSection`. You define defaults, OumLib writes the YAML file, and gives you a type-safe object to read from.
 
 ```java
-import dev.oum.oumlib.config.Comment;
-import dev.oum.oumlib.config.ConfigSection;
-
-public record MySQLCredentials(
-    @Comment("Hostname or IP of the MySQL database") String host,
-    @Comment("Database port") int port,
-    @Comment("Database credentials") String username,
-    String password
-) implements ConfigSection {}
-
-public record LobbyLocation(
-    String world,
-    double x,
-    double y,
-    double z
-) implements ConfigSection {}
-
-public record ArenaConfig(
-    @Comment("Database connection pool configuration")
-    MySQLCredentials database,
-
-    @Comment("Arena lobby spawn location")
-    LobbyLocation lobby,
-
-    @Comment("Maximum players allowed inside this arena")
+public record Settings(
+    String prefix,
     int maxPlayers,
-
-    @Comment("Whether debug messages are printed to the console")
-    boolean debugMode
+    boolean debug,
+    double spawnRadius
 ) implements ConfigSection {}
 ```
 
-This generates the following structured YAML layout automatically:
+```java
+ConfigManager<Settings> config = ConfigManager.of(
+    Settings.class,
+    "settings.yml",
+    () -> new Settings("<gold>[Server]</gold>", 50, false, 10.0)
+);
+```
+
+This creates `settings.yml` in your plugin's data folder (if it doesn't exist) with the defaults. On load, it reads the file and maps values back into the record.
+
+### Reading Values
+
+```java
+Settings s = config.get();
+String prefix = s.prefix();
+int max = s.maxPlayers();
+```
+
+---
+
+## Auto-Reload
+
+Watches the file for changes and reloads automatically:
+
+```java
+ConfigManager<Settings> config = ConfigManager.of(
+    Settings.class, "settings.yml", () -> new Settings(/* defaults */)
+).enableAutoReload();
+```
+
+You can also add a callback when the config reloads:
+
+```java
+config.onReload(newSettings -> {
+    OumLib.logInfo("Config reloaded! Debug is now: " + newSettings.debug());
+});
+```
+
+### Manual Reload
+
+```java
+config.reload();
+```
+
+### Save
+
+Write the current values back to disk:
+
+```java
+config.save();
+```
+
+---
+
+## Nested Records
+
+Records inside records work fine:
+
+```java
+public record DatabaseConfig(String host, int port, String database) implements ConfigSection {}
+
+public record MainConfig(
+    String serverName,
+    DatabaseConfig database
+) implements ConfigSection {}
+```
+
+This produces:
+
 ```yaml
-# Database connection pool configuration
+server-name: "My Server"
 database:
-  # Hostname or IP of the MySQL database
-  host: "127.0.0.1"
-  # Database port
+  host: "localhost"
   port: 3306
-  # Database credentials
-  username: "root"
-  password: "password"
-
-# Arena lobby spawn location
-lobby:
-  world: "world"
-  x: 0.0
-  y: 64.0
-  z: 0.0
-
-# Maximum players allowed inside this arena
-maxPlayers: 16
-
-# Whether debug messages are printed to the console
-debugMode: true
+  database: "mydb"
 ```
 
 ---
 
-## Loading and Auto-Reload Watcher
+## Comments
 
-Set up a configuration file mapping and enable background file watch services to automatically re-read values and fire updates:
+Use the `@Comment` annotation to add comments above fields in the YAML output:
 
 ```java
-import dev.oum.oumlib.config.ConfigManager;
-import org.bukkit.plugin.java.JavaPlugin;
+public record Settings(
+    @Comment("The prefix shown before messages")
+    String prefix,
 
-public final class ArenaManager {
-    private ConfigManager<ArenaConfig> configManager;
+    @Comment("Max players allowed in the arena")
+    int maxPlayers
+) implements ConfigSection {}
+```
 
-    public void initialize(JavaPlugin plugin) {
-        MySQLCredentials defaultDb = new MySQLCredentials("127.0.0.1", 3306, "root", "password");
-        LobbyLocation defaultLobby = new LobbyLocation("world", 0.0, 64.0, 0.0);
-        
-        configManager = ConfigManager.of(ArenaConfig.class, "arena.yml", 
-            () -> new ArenaConfig(defaultDb, defaultLobby, 16, true)
-        ).enableAutoReload();
+Produces:
 
-        configManager.onReload(newConfig -> {
-            plugin.getLogger().info("Arena configurations re-read from disk successfully!");
-            applyNewSettings(newConfig);
-        });
-    }
+```yaml
+# The prefix shown before messages
+prefix: "<gold>[Server]</gold>"
 
-    private void applyNewSettings(ArenaConfig config) {
-        System.out.println("Maximum players updated to: " + config.maxPlayers());
-    }
-}
+# Max players allowed in the arena
+max-players: 50
 ```
 
 ---
 
-## Configuration Schema Auto-Migration
+## Supported Types
 
-To modify keys and values as your plugin version upgrades, register sequential version migrations:
+- Primitives: `int`, `double`, `float`, `long`, `short`, `boolean`
+- `String`
+- `Component` (stored as MiniMessage strings)
+- `List<String>`, `List<Integer>`, `List<Double>`, etc.
+- `Map<String, Object>`
+- Nested `Record` types that implement `ConfigSection`
+- Enums
+
+---
+
+## Migrations
+
+For when you rename or restructure config fields between versions:
 
 ```java
-import dev.oum.oumlib.config.ConfigManager;
-import dev.oum.oumlib.config.ConfigMigrationRegistry;
-
-public final class ArenaUpgrader {
-    public void setupMigrations(ConfigManager<ArenaConfig> manager) {
-        manager.migrate(new ConfigMigrationRegistry()
-            .add(2, map -> {
-                if (map.containsKey("old-max-players")) {
-                    map.put("maxPlayers", map.remove("old-max-players"));
-                }
-            })
-            .add(3, map -> map.putIfAbsent("debugMode", false))
-        );
-    }
-}
+ConfigManager<Settings> config = ConfigManager.of(Settings.class, "settings.yml", () -> defaults)
+    .migrations(registry -> {
+        registry.rename("old-field-name", "new-field-name");
+        registry.remove("deprecated-field");
+    });
 ```
 
-When OumLib loads the config:
-1. It reads the current `config-version` inside the YAML file (defaults to `1` if not found).
-2. It applies each registered migration step with a key higher than the file's current version sequentially.
-3. It updates `config-version` to the highest migrated version.
-4. It saves the modified YAML structure back to disk automatically.
+> **Note:** Field names in YAML use kebab-case (`max-players`), not camelCase (`maxPlayers`). OumLib handles the conversion automatically.

@@ -2,7 +2,7 @@ package dev.oum.oumlib.command;
 
 import com.mojang.brigadier.arguments.*;
 import dev.oum.oumlib.OumLib;
-import dev.oum.oumlib.util.Format;
+import dev.oum.oumlib.text.Format;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;

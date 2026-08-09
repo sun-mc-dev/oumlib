@@ -304,7 +304,6 @@ public final class ConfigManager<T extends Record & ConfigSection> {
             }
         }
 
-        // Collect unknown keys the user may have added — preserved on save.
         Map<String, Object> unknownKeys = new LinkedHashMap<>();
         for (String yamlKey : yaml.keySet()) {
             boolean isKnown = false;

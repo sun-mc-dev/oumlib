@@ -7,7 +7,7 @@
 
     <groupId>dev.oum</groupId>
     <artifactId>oumlib</artifactId>
-    <version>1.0.8</version>
+    <version>1.0.9</version>
     <packaging>pom</packaging>
 
     <modules>
@@ -33,6 +33,10 @@
         <repository>
             <id>miniplaceholders</id>
             <url>https://repo.miniplaceholders.me/releases</url>
+        </repository>
+        <repository>
+            <id>codemc-releases</id>
+            <url>https://repo.codemc.io/repository/maven-releases/</url>
         </repository>
     </repositories>
 

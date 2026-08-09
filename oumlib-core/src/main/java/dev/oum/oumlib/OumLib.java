@@ -10,7 +10,11 @@ import dev.oum.oumlib.config.ConfigWatcher;
 import dev.oum.oumlib.event.EventBus;
 import dev.oum.oumlib.event.platform.PaperEventBus;
 import dev.oum.oumlib.event.platform.VelocityEventBus;
+import dev.oum.oumlib.entity.hologram.HologramRegistry;
 import dev.oum.oumlib.inventory.MenuRegistry;
+import dev.oum.oumlib.pdc.metadata.VolatileData;
+import dev.oum.oumlib.inventory.recipe.RecipeRegistry;
+import dev.oum.oumlib.math.region.RegionTracker;
 import dev.oum.oumlib.scheduler.Scheduler;
 import dev.oum.oumlib.scheduler.platform.BukkitSchedulerAdapter;
 import dev.oum.oumlib.scheduler.platform.VelocitySchedulerAdapter;
@@ -45,6 +49,9 @@ public final class OumLib {
 
     private static PresetRegistry presetRegistry;
     private static PlaceholderRegistry placeholderRegistry;
+    private static HologramRegistry hologramRegistry;
+    private static RegionTracker regionTracker;
+    private static RecipeRegistry recipeRegistry;
     private static boolean initialized;
     private static boolean debugMode = false;
     private static BiConsumer<CommandContext, Throwable> commandErrorHandler = (context, ex) -> {
@@ -74,6 +81,12 @@ public final class OumLib {
         p.getServer().getMessenger().registerOutgoingPluginChannel(p, "oumlib:autocomplete");
 
         detectIntegrations(p);
+        hologramRegistry = new HologramRegistry(p);
+        hologramRegistry.start();
+        regionTracker = new RegionTracker(p);
+        regionTracker.start();
+        recipeRegistry = new RecipeRegistry();
+        VolatileData.initialize();
         initialized = true;
         return new InitBuilder();
     }
@@ -176,6 +189,19 @@ public final class OumLib {
         Scheduler.shutdownAll();
         MenuRegistry.shutdown();
         ConfigWatcher.shutdown();
+        if (hologramRegistry != null) {
+            hologramRegistry.stop();
+            hologramRegistry = null;
+        }
+        if (regionTracker != null) {
+            regionTracker.stop();
+            regionTracker = null;
+        }
+        if (recipeRegistry != null) {
+            recipeRegistry.unregisterAll();
+            recipeRegistry = null;
+        }
+        VolatileData.clearAll();
         plugin = null;
         proxyServer = null;
         velocityPlugin = null;
@@ -213,6 +239,27 @@ public final class OumLib {
 
     public static boolean isVelocity() {
         return proxyServer != null;
+    }
+
+    public static HologramRegistry holograms() {
+        assertInit();
+        if (hologramRegistry == null)
+            throw new IllegalStateException("Hologram registry is only available on Paper platform.");
+        return hologramRegistry;
+    }
+
+    public static RegionTracker regions() {
+        assertInit();
+        if (regionTracker == null)
+            throw new IllegalStateException("Region tracker is only available on Paper platform.");
+        return regionTracker;
+    }
+
+    public static RecipeRegistry recipes() {
+        assertInit();
+        if (recipeRegistry == null)
+            throw new IllegalStateException("Recipe registry is only available on Paper platform.");
+        return recipeRegistry;
     }
 
     public static @NonNull File getDataFolder() {

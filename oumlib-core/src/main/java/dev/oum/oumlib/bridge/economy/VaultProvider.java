@@ -39,7 +39,6 @@ public final class VaultProvider implements EconomyProvider {
             Object response = economy.getClass().getMethod("withdrawPlayer", OfflinePlayer.class, double.class).invoke(economy, player, amount);
             Class<?> responseClass = Class.forName("net.milkbowl.vault.economy.EconomyResponse");
             Object type = responseClass.getField("type").get(response);
-            // EconomyResponse.ResponseType.SUCCESS
             return type != null && "SUCCESS".equals(type.toString());
         } catch (Exception e) {
             return false;

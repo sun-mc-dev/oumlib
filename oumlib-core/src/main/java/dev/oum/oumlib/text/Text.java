@@ -15,6 +15,7 @@ import net.kyori.adventure.title.Title;
 import org.jetbrains.annotations.CheckReturnValue;
 import org.jetbrains.annotations.Contract;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import java.lang.reflect.RecordComponent;
 import java.time.Duration;
@@ -30,65 +31,89 @@ public final class Text {
     private Text() {
     }
 
-    public static void send(@NonNull Audience audience, String message, Object... pairs) {
+    public static void send(@NonNull Audience audience, @NonNull String message, Object... pairs) {
         audience.sendMessage(parse(resolve(message, audience), createResolvers(pairs)));
     }
 
-    public static void send(@NonNull Audience audience, String message) {
+    public static void send(@NonNull Audience audience, @NonNull String message) {
         audience.sendMessage(parse(resolve(message, audience)));
     }
 
-    public static void send(@NonNull Audience audience, String message, Record data) {
+    public static void send(@NonNull Audience audience, @NonNull String message, @NonNull Record data) {
         audience.sendMessage(parse(resolve(message, audience), createResolvers(data)));
     }
 
-    public static void sendLines(Audience audience, @NonNull List<String> lines, Object... pairs) {
+    public static void sendLines(@NonNull Audience audience, @NonNull List<String> lines, Object... pairs) {
         TagResolver[] resolvers = createResolvers(pairs);
         lines.forEach(line -> audience.sendMessage(parse(resolve(line, audience), resolvers)));
     }
 
-    public static @NonNull Component parse(String message) {
+    @Contract(pure = true)
+    @CheckReturnValue
+    public static @NonNull Component parse(@NonNull String message) {
         return MM.deserialize(message);
     }
 
-    public static @NonNull Component parse(String message, TagResolver... resolvers) {
+    @Contract(pure = true)
+    @CheckReturnValue
+    public static @NonNull Component parse(@NonNull String message, TagResolver... resolvers) {
         return MM.deserialize(message, resolvers);
     }
 
-    public static @NonNull String strip(String message) {
+    @Contract(pure = true)
+    @CheckReturnValue
+    public static @NonNull Component deserialize(@NonNull String message) {
+        return MM.deserialize(message);
+    }
+
+    @Contract(pure = true)
+    @CheckReturnValue
+    public static @NonNull Component deserialize(@NonNull String message, TagResolver... resolvers) {
+        return MM.deserialize(message, resolvers);
+    }
+
+    @Contract(pure = true)
+    @CheckReturnValue
+    public static @NonNull String serialize(@NonNull Component component) {
+        return MM.serialize(component);
+    }
+
+    @Contract(pure = true)
+    @CheckReturnValue
+    public static @NonNull String strip(@NonNull String message) {
         return MM.stripTags(message);
     }
 
-    public static void actionBar(@NonNull Audience audience, String message, Object... pairs) {
+    public static void actionBar(@NonNull Audience audience, @NonNull String message, Object... pairs) {
         audience.sendActionBar(parse(resolve(message, audience), createResolvers(pairs)));
     }
 
-    public static void title(@NonNull Audience audience, String title, String subtitle,
-                             Duration fadeIn, Duration stay, Duration fadeOut) {
+    public static void title(@NonNull Audience audience, @NonNull String title, @NonNull String subtitle,
+                             @NonNull Duration fadeIn, @NonNull Duration stay, @NonNull Duration fadeOut) {
         audience.showTitle(Title.title(parse(title), parse(subtitle), Title.Times.times(fadeIn, stay, fadeOut)));
     }
 
-    public static void title(@NonNull Audience audience, String title, String subtitle) {
+    public static void title(@NonNull Audience audience, @NonNull String title, @NonNull String subtitle) {
         title(audience, title, subtitle, Duration.ofMillis(500), Duration.ofMillis(3000), Duration.ofMillis(500));
     }
 
-    public static void broadcast(String message, Object... pairs) {
+    public static void broadcast(@NonNull String message, Object... pairs) {
         OumLib.players().sendMessage(parse(resolve(message, null), createResolvers(pairs)));
     }
 
-    public static void broadcast(String message, Record data) {
+    public static void broadcast(@NonNull String message, @NonNull Record data) {
         OumLib.players().sendMessage(parse(resolve(message, null), createResolvers(data)));
     }
 
-    public static void broadcastActionBar(String message, Object... pairs) {
+    public static void broadcastActionBar(@NonNull String message, Object... pairs) {
         OumLib.players().sendActionBar(parse(resolve(message, null), createResolvers(pairs)));
     }
 
-    public static void broadcastTitle(String title, String subtitle, Duration fadeIn, Duration stay, Duration fadeOut) {
+    public static void broadcastTitle(@NonNull String title, @NonNull String subtitle, @NonNull Duration fadeIn, @NonNull Duration stay, @NonNull Duration fadeOut) {
         OumLib.players().showTitle(Title.title(parse(title), parse(subtitle), Title.Times.times(fadeIn, stay, fadeOut)));
     }
 
-    public static void broadcastTitle(String title, String subtitle) {
+    public static void broadcastTitle(@NonNull String title, @NonNull String subtitle) {
         broadcastTitle(title, subtitle, Duration.ofMillis(500), Duration.ofMillis(3000), Duration.ofMillis(500));
     }
 
@@ -98,7 +123,9 @@ public final class Text {
         return new TextBuilder(message);
     }
 
-    public static Component clickable(String text, ClickEvent clickEvent, String hoverText) {
+    @Contract(pure = true)
+    @CheckReturnValue
+    public static @NonNull Component clickable(@NonNull String text, @NonNull ClickEvent clickEvent, @Nullable String hoverText) {
         Component c = parse(text).clickEvent(clickEvent);
         if (hoverText != null) c = c.hoverEvent(HoverEvent.showText(parse(hoverText)));
         return c;

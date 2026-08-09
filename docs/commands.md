@@ -1,154 +1,201 @@
-# Commands & Brigadier Wrapper
+# Commands
 
-OumLib features a builder-based wrapper for Brigadier, providing modern command registration with platform-agnostic structures, typed arguments, completions, and cooldowns.
+`dev.oum.oumlib.command` · Paper / Velocity
 
 ---
 
-## Real-world Example: Warp System
-
-Here is a warp command system supporting coordinates storage, permissions, a teleportation cooldown, and rich hover tooltips for tab completion suggestions:
+## Basic Command
 
 ```java
-import dev.oum.oumlib.command.Arguments;
-import dev.oum.oumlib.command.Commands;
-import dev.oum.oumlib.command.Argument;
-import dev.oum.oumlib.command.RichSuggestion;
-import dev.oum.oumlib.text.Text;
-import dev.oum.oumlib.util.Permission;
-import org.bukkit.Location;
-import org.bukkit.entity.Player;
-import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+CommandBuilder.create("hello")
+    .description("Says hello")
+    .executes(ctx -> {
+        ctx.reply("<green>Hello, world!");
+    })
+    .register();
+```
 
-public final class WarpCommandRegistry {
-    private final Map<String, Location> warps = new HashMap<>();
+That's it. Works on both Paper and Velocity. On Paper it registers through Brigadier. On Velocity it uses the Velocity command API. You don't have to care which.
 
-    public void register() {
-        Permission warpPermission = Permission.builder("myplugin.warp.use").build();
-        Permission adminPermission = Permission.builder("myplugin.warp.admin").build();
+---
 
-        Argument<String> warpArg = Arguments.string("warp")
-            .suggestsRich(context -> List.of(
-                RichSuggestion.of("spawn", "Teleport to the main server spawn"),
-                RichSuggestion.of("pvp", "Teleport to the PvP combat arena"),
-                RichSuggestion.of("shop", "Teleport to the server shop market")
-            ));
+## Arguments
 
-        Commands.literal("warp")
-            .permission(warpPermission)
-            .cooldown(Duration.ofSeconds(10), "<red>Wait <remaining>s before warping again.</red>")
-            .argument(warpArg)
-            .executes(context -> {
-                if (!context.isPlayer()) {
-                    Text.send(context.sender(), "<red>Console cannot teleport!</red>");
-                    return;
-                }
+Add typed arguments with the `Arguments` factory:
 
-                Player player = context.playerOrThrow();
-                String warpName = context.args().get(warpArg);
-                Location loc = warps.get(warpName);
+```java
+CommandBuilder.create("give-coins")
+    .argument(Arguments.player("target"))
+    .argument(Arguments.integer("amount", 1, 10000))
+    .executes(ctx -> {
+        Player target = ctx.args().get("target");
+        int amount = ctx.args().get("amount");
+        ctx.reply("<green>Gave " + amount + " coins to " + target.getName());
+    })
+    .register();
+```
 
-                if (loc == null) {
-                    Text.send(player, "<red>Warp '" + warpName + "' does not exist!</red>");
-                    return;
-                }
+### Available Argument Types
 
-                player.teleport(loc);
-                Text.send(player, "<green>Warped to " + warpName + "!</green>");
-            })
-            .subcommand(sub -> sub
-                .label("set")
-                .permission(adminPermission)
-                .argument(Arguments.string("name"))
-                .executes(context -> {
-                    if (!context.isPlayer()) {
-                        Text.send(context.sender(), "<red>Only players can set warps.</red>");
-                        return;
-                    }
+| Method                                      | Type            | Notes                        |
+|:--------------------------------------------|:----------------|:-----------------------------|
+| `Arguments.word("name")`                    | `String`        | Single word                  |
+| `Arguments.string("name")`                  | `String`        | Greedy (rest of input)       |
+| `Arguments.integer("name")`                 | `Integer`       | Optional min/max             |
+| `Arguments.decimal("name")`                 | `Double`        | Optional min/max             |
+| `Arguments.bool("name")`                    | `Boolean`       |                              |
+| `Arguments.floatArg("name")`                | `Float`         | Optional min/max             |
+| `Arguments.longArg("name")`                 | `Long`          | Optional min/max             |
+| `Arguments.player("name")`                  | `Player`        | Tab-completes online players |
+| `Arguments.players("name")`                 | `List<Player>`  | Multiple players             |
+| `Arguments.offlinePlayer("name")`           | `OfflinePlayer` |                              |
+| `Arguments.world("name")`                   | `World`         | Paper only                   |
+| `Arguments.material("name")`                | `Material`      |                              |
+| `Arguments.enumValue("name", MyEnum.class)` | `Enum`          | Any enum class               |
+| `Arguments.duration("name")`                | `Duration`      | Parses `1h30m`, `5s`, etc.   |
+| `Arguments.entity("name")`                  | `Entity`        | Paper only                   |
+| `Arguments.entities("name")`                | `List<Entity>`  | Paper only                   |
+| `Arguments.finePosition("name")`            | `Location`      | Paper only, exact coords     |
+| `Arguments.blockPosition("name")`           | `BlockPosition` | Paper only                   |
+| `Arguments.key("name")`                     | `NamespacedKey` | Paper only                   |
 
-                    Player player = context.playerOrThrow();
-                    String warpName = context.args().getString("name");
-                    warps.put(warpName, player.getLocation());
-                    Text.send(player, "<green>Warp '" + warpName + "' has been set to your location!</green>");
-                })
-            )
-            .register();
-    }
-}
+### Custom Suggestions
+
+```java
+Arguments.word("kit")
+    .suggests(ctx -> List.of("starter", "warrior", "mage"))
 ```
 
 ---
 
-## Command Context API Reference
+## Subcommands
 
-The `CommandContext` object represents the execution environment:
-
-- `context.sender()`: Returns the Kyori `Audience` representing the command executor.
-- `context.playerOrThrow()`: Returns the player object cast to the appropriate platform type.
-- `context.isPlayer()`: Returns `true` if the sender is a player.
-- `context.isConsole()`: Returns `true` if the sender is the console.
-- `context.args()`: Accessor for parsed command arguments:
-  - `args.get(Argument<T>)`: Returns the type-safe parsed value.
-  - `args.getString("name")`: Returns the parsed String, or `""` if not found.
-  - `args.getInt("name")`: Returns the parsed integer, or `0` if not found.
-  - `args.getDouble("name")`: Returns the parsed double, or `0.0` if not found.
-  - `args.getBoolean("name")`: Returns the parsed boolean, or `false` if not found.
-- `context.reply(Component)`: Sends a pre-built Adventure `Component` to the sender.
-- `context.reply(String, TagResolver...)`: Parses a MiniMessage template and sends it.
+```java
+CommandBuilder.create("arena")
+    .subcommand(sub -> sub
+        .literal("join")
+        .argument(Arguments.word("name"))
+        .executes(ctx -> {
+            String name = ctx.args().get("name");
+            ctx.reply("<green>Joining arena: " + name);
+        })
+    )
+    .subcommand(sub -> sub
+        .literal("leave")
+        .executes(ctx -> ctx.reply("<yellow>Left the arena"))
+    )
+    .register();
+```
 
 ---
 
-## Cooldowns & Bypasses
+## Permissions
 
-Configure rate-limits per player UUID automatically:
 ```java
-.cooldown(Duration.ofSeconds(10), "Cooldown active: <remaining>s")
+// Using a Permission object (from bridge module)
+CommandBuilder.create("admin")
+    .permission(Permission.builder("myplugin.admin").build())
+    .executes(ctx -> { /* ... */ })
+    .register();
 ```
-
-Any player who possesses the bypass permission will not trigger the cooldown. The bypass permission is automatically calculated as:
-`<command_permission>.bypass` (e.g. `myplugin.warp.use.bypass`)
-If the command has no permission defined, it defaults to:
-`<command_label>.bypass` (e.g. `warp.bypass`)
 
 ---
 
-## Command Exception Handling
+## Cooldowns
 
-Configure a fallback error handler globally during OumLib initialization or define builder-specific callbacks:
+Built-in cooldown support — no extra wiring needed:
 
-### Global Command Error Handler
 ```java
-import dev.oum.oumlib.OumLib;
-import dev.oum.oumlib.text.Text;
-import org.bukkit.plugin.java.JavaPlugin;
-
-public class CommandInitializer {
-    public void setup(JavaPlugin plugin) {
-        OumLib.init(plugin)
-            .commandErrorHandler((context, exception) -> {
-                Text.send(context.sender(), "<red>An error occurred executing this command: " + exception.getMessage() + "</red>");
-            });
-    }
-}
+CommandBuilder.create("daily")
+    .cooldown(Duration.ofHours(24))
+    .cooldownMessage("<red>Come back in <remaining>!")
+    .executes(ctx -> {
+        ctx.reply("<gold>Here's your daily reward!");
+    })
+    .register();
 ```
 
-### Builder-Specific Exception Handler
-```java
-import dev.oum.oumlib.command.Commands;
-import dev.oum.oumlib.text.Text;
+The `<remaining>` placeholder gets replaced with a formatted countdown like `23h 59m`.
 
-public class TransactionCommand {
-    public void register() {
-        Commands.literal("pay")
-            .onException((context, exception) -> {
-                Text.send(context.sender(), "<red>Payment failed: Transaction rolled back.</red>");
-            })
-            .executes(context -> {
-                throw new RuntimeException("Bank server timed out");
-            })
-            .register();
-    }
-}
+You can share a cooldown across commands:
+
+```java
+CooldownManager<UUID> sharedCooldown = CooldownManager.create();
+
+CommandBuilder.create("cmd1")
+    .cooldown(Duration.ofSeconds(30), sharedCooldown)
+    // ...
+
+CommandBuilder.create("cmd2")
+    .cooldown(Duration.ofSeconds(30), sharedCooldown)
+    // ...
 ```
+
+To let certain players bypass the cooldown:
+
+```java
+CommandBuilder.create("heal")
+    .cooldown(Duration.ofMinutes(5))
+    .cooldownBypass(ctx -> ctx.sender().hasPermission("myplugin.heal.bypass"))
+    .executes(ctx -> { /* ... */ })
+    .register();
+```
+
+---
+
+## Aliases
+
+```java
+CommandBuilder.create("teleport")
+    .aliases("tp", "goto")
+    .executes(ctx -> { /* ... */ })
+    .register();
+```
+
+---
+
+## Error Handling
+
+Per-command exception handler:
+
+```java
+CommandBuilder.create("risky")
+    .onException((ctx, ex) -> {
+        ctx.reply("<red>That command failed. Check console.");
+        OumLib.logError("Command /risky failed", ex);
+    })
+    .executes(ctx -> {
+        // if this throws, the handler above catches it
+    })
+    .register();
+```
+
+Or set a global handler during init:
+
+```java
+OumLib.init(this)
+    .commandErrorHandler((ctx, ex) -> {
+        ctx.reply("<red>An error occurred.");
+    });
+```
+
+---
+
+## CommandContext
+
+The `ctx` object passed to your executor has these helpers:
+
+| Method                           | What it does                            |
+|:---------------------------------|:----------------------------------------|
+| `ctx.sender()`                   | The `Audience` who ran the command      |
+| `ctx.isPlayer()`                 | Whether the sender is a player          |
+| `ctx.isConsole()`                | Whether the sender is the console       |
+| `ctx.playerOrThrow()`            | Returns the player or throws            |
+| `ctx.args()`                     | The `ArgumentMap` with parsed arguments |
+| `ctx.label()`                    | The command label used                  |
+| `ctx.reply(miniMessage)`         | Sends a MiniMessage string              |
+| `ctx.reply(component)`           | Sends a Component                       |
+| `ctx.sendActionBar(msg)`         | Action bar message                      |
+| `ctx.sendTitle(title, subtitle)` | Title screen                            |
+| `ctx.sendTranslated(key)`        | Sends a localized message               |
+| `ctx.clearTitle()`               | Clears the title                        |
