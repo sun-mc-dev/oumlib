@@ -26,10 +26,12 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.ItemRarity;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataHolder;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 public final class PaperExamplePlugin extends JavaPlugin {
@@ -91,7 +93,7 @@ public final class PaperExamplePlugin extends JavaPlugin {
             Text.actionBar(player, "<gold>Cast Flame Surge! (In combat for 10s)");
 
             PDC.set(item, ITEM_POWER, PDC.getOrDefault(item, ITEM_POWER, 0) + 1);
-            PDC.flags(item).toggle("empowered");
+            PDC.flags((PersistentDataHolder) item).toggle("empowered");
         });
     }
 
@@ -146,7 +148,7 @@ public final class PaperExamplePlugin extends JavaPlugin {
                 .buildAndRegister();
 
         if (holo.getLine(2) != null) {
-            DisplayAnimation.bobbing(holo.getLine(2).getDisplay(), 0.15, 40);
+            DisplayAnimation.bobbing(Objects.requireNonNull(holo.getLine(2)).getDisplay(), 0.15, 40);
         }
     }
 

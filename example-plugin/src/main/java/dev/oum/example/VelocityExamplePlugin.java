@@ -54,10 +54,9 @@ public final class VelocityExamplePlugin {
             Text.send(player, "<gradient:#ff5555:#ffff55>Welcome to the network, " + player.getUsername() + "!</gradient>");
         });
 
-        CommandBuilder.of("hub")
+        CommandBuilder.literal("hub")
                 .description("Send player back to the hub server")
                 .aliases("lobby", "spawn")
-                .playerOnly()
                 .executes(ctx -> {
                     Player player = (Player) ctx.sender();
                     if (!proxyCommandLimiter.tryAcquire(player.getUniqueId())) {
@@ -75,7 +74,7 @@ public final class VelocityExamplePlugin {
                 .register();
 
         Scheduler.runRepeating(Duration.ZERO, Duration.ofMinutes(1), () -> {
-            Proxy.ping("survival").then(result -> {
+            Proxy.ping("survival").thenAccept(result -> {
                 if (result.online()) {
                     OumLib.logInfo("Survival server is healthy: " + result.currentPlayers() + "/" + result.maxPlayers() + " players.");
                 } else {
