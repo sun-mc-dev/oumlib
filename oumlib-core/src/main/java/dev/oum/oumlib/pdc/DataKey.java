@@ -255,23 +255,23 @@ public record DataKey<P, C>(
     private record JsonDataType<T>(Class<T> clazz) implements PersistentDataType<String, T> {
 
         @Override
-            public @NonNull Class<String> getPrimitiveType() {
-                return String.class;
-            }
-
-            @Override
-            public @NonNull Class<T> getComplexType() {
-                return clazz;
-            }
-
-            @Override
-            public @NonNull String toPrimitive(@NonNull T complex, @NonNull PersistentDataAdapterContext context) {
-                return GSON.toJson(complex);
-            }
-
-            @Override
-            public @NonNull T fromPrimitive(@NonNull String primitive, @NonNull PersistentDataAdapterContext context) {
-                return GSON.fromJson(primitive, clazz);
-            }
+        public @NonNull Class<String> getPrimitiveType() {
+            return String.class;
         }
+
+        @Override
+        public @NonNull Class<T> getComplexType() {
+            return clazz;
+        }
+
+        @Override
+        public @NonNull String toPrimitive(@NonNull T complex, @NonNull PersistentDataAdapterContext context) {
+            return GSON.toJson(complex);
+        }
+
+        @Override
+        public @NonNull T fromPrimitive(@NonNull String primitive, @NonNull PersistentDataAdapterContext context) {
+            return GSON.fromJson(primitive, clazz);
+        }
+    }
 }

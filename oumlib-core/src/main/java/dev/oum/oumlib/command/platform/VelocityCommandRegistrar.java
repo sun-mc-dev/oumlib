@@ -8,8 +8,8 @@ import com.velocitypowered.api.command.CommandMeta;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.proxy.Player;
 import dev.oum.oumlib.OumLib;
-import dev.oum.oumlib.command.*;
 import dev.oum.oumlib.bridge.permission.Permission;
+import dev.oum.oumlib.command.*;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.jspecify.annotations.NonNull;
 

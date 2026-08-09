@@ -17,7 +17,9 @@ import org.jetbrains.annotations.UnmodifiableView;
 import org.jspecify.annotations.NonNull;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class HologramRegistry extends PacketListenerAbstract {

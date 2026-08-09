@@ -6,7 +6,7 @@ import dev.oum.oumlib.OumLib;
 import dev.oum.oumlib.pdc.DataKey;
 import dev.oum.oumlib.pdc.PdcModel;
 import dev.oum.oumlib.text.Text;
-import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.DataComponentType;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -172,7 +172,6 @@ public final class ItemBuilder {
         meta.setEnchantmentGlintOverride(glint);
         return this;
     }
-
 
 
     @Contract(value = "_ -> this", mutates = "this")
