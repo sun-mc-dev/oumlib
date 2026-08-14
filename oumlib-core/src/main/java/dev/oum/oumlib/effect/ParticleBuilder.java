@@ -85,4 +85,29 @@ public final class ParticleBuilder {
             spawn(p, location);
         }
     }
+
+    public void ring(@NonNull Location center, double radius, int points) {
+        if (center.getWorld() == null) return;
+        double increment = (2 * Math.PI) / points;
+        for (int i = 0; i < points; i++) {
+            double angle = i * increment;
+            double x = center.getX() + radius * Math.cos(angle);
+            double z = center.getZ() + radius * Math.sin(angle);
+            Location point = new Location(center.getWorld(), x, center.getY(), z);
+            spawn(point);
+        }
+    }
+
+    public void helix(@NonNull Location base, double radius, double height, int points, double rotations) {
+        if (base.getWorld() == null) return;
+        for (int i = 0; i < points; i++) {
+            double progress = (double) i / points;
+            double angle = progress * (2 * Math.PI * rotations);
+            double x = base.getX() + radius * Math.cos(angle);
+            double y = base.getY() + (progress * height);
+            double z = base.getZ() + radius * Math.sin(angle);
+            Location point = new Location(base.getWorld(), x, y, z);
+            spawn(point);
+        }
+    }
 }

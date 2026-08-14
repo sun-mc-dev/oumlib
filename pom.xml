@@ -12,7 +12,6 @@
 
     <modules>
         <module>oumlib-core</module>
-        <module>example-plugin</module>
     </modules>
 
     <properties>

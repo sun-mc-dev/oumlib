@@ -92,8 +92,16 @@ public final class Promise<T> {
         return new Promise<>(future.thenApply(mapper));
     }
 
+    public <U> @NonNull Promise<U> thenApply(@NonNull Function<T, U> mapper) {
+        return map(mapper);
+    }
+
     public <U> @NonNull Promise<U> flatMap(@NonNull Function<T, Promise<U>> mapper) {
         return new Promise<>(future.thenCompose(value -> mapper.apply(value).toCompletableFuture()));
+    }
+
+    public <U> @NonNull Promise<U> thenCompose(@NonNull Function<T, Promise<U>> mapper) {
+        return flatMap(mapper);
     }
 
     public @NonNull Promise<T> exceptionally(@NonNull Function<Throwable, T> recover) {
@@ -235,5 +243,9 @@ public final class Promise<T> {
 
     public @NonNull CompletableFuture<T> toCompletableFuture() {
         return future;
+    }
+
+    public T join() {
+        return future.join();
     }
 }

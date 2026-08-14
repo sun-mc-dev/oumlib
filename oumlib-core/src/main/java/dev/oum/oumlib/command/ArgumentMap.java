@@ -27,6 +27,22 @@ public final class ArgumentMap {
         });
     }
 
+    public <T> T getOrDefault(@NonNull Argument<T> argument, T defaultValue) {
+        T val = get(argument);
+        return val != null ? val : defaultValue;
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T get(@NonNull String name) {
+        return (T) cache.computeIfAbsent(name, k -> {
+            try {
+                return ctx.getArgument(k, Object.class);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        });
+    }
+
     @SuppressWarnings("unchecked")
     public <T> T get(@NonNull String name, @NonNull Class<T> clazz) {
         return (T) cache.computeIfAbsent(name, k -> {

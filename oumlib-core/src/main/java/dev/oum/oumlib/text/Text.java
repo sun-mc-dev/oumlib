@@ -31,6 +31,12 @@ public final class Text {
     private Text() {
     }
 
+    @Contract("_ -> new")
+    @CheckReturnValue
+    public static @NonNull TextBuilder of(@NonNull String message) {
+        return new TextBuilder(message);
+    }
+
     public static void send(@NonNull Audience audience, @NonNull String message, Object... pairs) {
         audience.sendMessage(parse(resolve(message, audience), createResolvers(pairs)));
     }
@@ -95,6 +101,10 @@ public final class Text {
 
     public static void title(@NonNull Audience audience, @NonNull String title, @NonNull String subtitle) {
         title(audience, title, subtitle, Duration.ofMillis(500), Duration.ofMillis(3000), Duration.ofMillis(500));
+    }
+
+    public static void broadcast(@NonNull Component component) {
+        OumLib.players().sendMessage(component);
     }
 
     public static void broadcast(@NonNull String message, Object... pairs) {

@@ -4,6 +4,7 @@
 [![](https://img.shields.io/jitpack/v/github/sun-mc-dev/oumlib?color=yellow&style=for-the-badge)](https://jitpack.io/#sun-mc-dev/oumlib)
 [![](https://img.shields.io/badge/Java-21+-orange?style=for-the-badge&logo=openjdk)](https://adoptium.net/)
 [![](https://img.shields.io/badge/Folia-Compatible-gold?style=for-the-badge)](https://github.com/PaperMC/Folia)
+[![CodeFactor](https://www.codefactor.io/repository/github/sun-mc-dev/oumlib/badge)](https://www.codefactor.io/repository/github/sun-mc-dev/oumlib)
 
 A utility library for Paper and Velocity plugins. Shade it into your jar, call `OumLib.init(this)`, and you get commands, menus, configs, scheduling, cooldowns, events, regions, holograms, recipes, database access, and more — all with a fluent API and zero external dependencies at runtime.
 

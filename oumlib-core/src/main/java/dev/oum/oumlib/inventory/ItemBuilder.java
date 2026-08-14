@@ -3,6 +3,7 @@ package dev.oum.oumlib.inventory;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.google.gson.Gson;
 import dev.oum.oumlib.OumLib;
+import dev.oum.oumlib.bridge.item.ItemBridge;
 import dev.oum.oumlib.pdc.DataKey;
 import dev.oum.oumlib.pdc.PdcModel;
 import dev.oum.oumlib.text.Text;
@@ -62,6 +63,17 @@ public final class ItemBuilder {
         return new ItemBuilder(item);
     }
 
+    @Contract("_ -> new")
+    @CheckReturnValue
+    public static @NonNull ItemBuilder from(@NonNull String identifier) {
+        return ItemBridge.getItem(identifier)
+                .map(ItemBuilder::of)
+                .orElseGet(() -> {
+                    Material mat = Material.matchMaterial(identifier);
+                    return of(mat != null ? mat : Material.STONE);
+                });
+    }
+
     @Contract("_, _, _ -> new")
     @CheckReturnValue
     public static @NonNull ItemStack quick(@NonNull Material material, @NonNull String miniMessageName, String @NonNull ... loreLines) {
@@ -85,6 +97,12 @@ public final class ItemBuilder {
         meta.lore(Arrays.stream(lines)
                 .map(l -> Text.parse("<!italic><gray>" + l))
                 .collect(Collectors.toList()));
+        return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder lore(Component @NonNull ... lines) {
+        meta.lore(Arrays.asList(lines));
         return this;
     }
 
@@ -113,6 +131,15 @@ public final class ItemBuilder {
     }
 
     @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder addLore(Component @NonNull ... lines) {
+        List<Component> currentLore = meta.lore();
+        if (currentLore == null) currentLore = new ArrayList<>();
+        currentLore.addAll(Arrays.asList(lines));
+        meta.lore(currentLore);
+        return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder amount(int amount) {
         stack.setAmount(amount);
         return this;
@@ -132,7 +159,12 @@ public final class ItemBuilder {
 
     @Contract(value = "-> this", mutates = "this")
     public @NonNull ItemBuilder glow() {
-        meta.setEnchantmentGlintOverride(true);
+        return glow(true);
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder glow(boolean glow) {
+        meta.setEnchantmentGlintOverride(glow);
         return this;
     }
 
@@ -147,6 +179,11 @@ public final class ItemBuilder {
     public @NonNull ItemBuilder customModelData(@Nullable Integer data) {
         meta.setCustomModelData(data);
         return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder modelData(int data) {
+        return customModelData(data);
     }
 
     @Contract(value = "_ -> this", mutates = "this")

@@ -23,6 +23,10 @@ public final class Permission {
         return new Builder(name);
     }
 
+    public static @NonNull Permission of(@NonNull String name) {
+        return builder(name).build();
+    }
+
     public @NonNull String name() {
         return name;
     }

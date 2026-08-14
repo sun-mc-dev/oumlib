@@ -84,6 +84,11 @@ public final class Pagination<T> {
             return this;
         }
 
+        public Builder<T> entryRenderer(Function<T, String> renderer) {
+            this.entryRenderer = renderer;
+            return this;
+        }
+
         public Builder<T> footer(String footer) {
             this.footer = footer;
             return this;

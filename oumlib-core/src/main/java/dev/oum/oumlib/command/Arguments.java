@@ -55,11 +55,11 @@ public final class Arguments {
     }
 
     @Contract("_ -> new")
-    @SuppressWarnings("DataFlowIssue")
-    public static @NonNull Argument<?> player(String name) {
+    @SuppressWarnings({"DataFlowIssue", "unchecked"})
+    public static <T> @NonNull Argument<T> player(String name) {
         try {
             Class.forName("io.papermc.paper.command.brigadier.argument.ArgumentTypes");
-            return (Argument<?>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
+            return (Argument<T>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
                     .getDeclaredMethod("createPlayerArgument", String.class)
                     .invoke(null, name);
         } catch (Exception ignored) {
@@ -68,21 +68,22 @@ public final class Arguments {
             Class.forName("org.bukkit.Bukkit");
             return new Argument<>(name, StringArgumentType.word(), (raw, ctx) -> {
                 String nameStr = (String) raw;
-                return Bukkit.getPlayer(nameStr);
+                return (T) Bukkit.getPlayer(nameStr);
             });
         } catch (Exception ignored) {
         }
         return new Argument<>(name, StringArgumentType.word(), (raw, ctx) -> {
             String nameStr = (String) raw;
-            return OumLib.proxy().getPlayer(nameStr).orElse(null);
+            return (T) OumLib.proxy().getPlayer(nameStr).orElse(null);
         });
     }
 
     @Contract("_ -> new")
-    public static @NonNull Argument<?> finePosition(String name) {
+    @SuppressWarnings("unchecked")
+    public static <T> @NonNull Argument<T> finePosition(String name) {
         try {
             Class.forName("io.papermc.paper.command.brigadier.argument.ArgumentTypes");
-            return (Argument<?>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
+            return (Argument<T>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
                     .getDeclaredMethod("createFinePositionArgument", String.class)
                     .invoke(null, name);
         } catch (Exception ignored) {
@@ -91,10 +92,11 @@ public final class Arguments {
     }
 
     @Contract("_ -> new")
-    public static @NonNull Argument<?> blockPosition(String name) {
+    @SuppressWarnings("unchecked")
+    public static <T> @NonNull Argument<T> blockPosition(String name) {
         try {
             Class.forName("io.papermc.paper.command.brigadier.argument.ArgumentTypes");
-            return (Argument<?>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
+            return (Argument<T>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
                     .getDeclaredMethod("createBlockPositionArgument", String.class)
                     .invoke(null, name);
         } catch (Exception ignored) {
@@ -103,10 +105,11 @@ public final class Arguments {
     }
 
     @Contract("_ -> new")
-    public static @NonNull Argument<?> players(String name) {
+    @SuppressWarnings("unchecked")
+    public static <T> @NonNull Argument<T> players(String name) {
         try {
             Class.forName("io.papermc.paper.command.brigadier.argument.ArgumentTypes");
-            return (Argument<?>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
+            return (Argument<T>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
                     .getDeclaredMethod("createPlayersArgument", String.class)
                     .invoke(null, name);
         } catch (Exception ignored) {
@@ -116,22 +119,23 @@ public final class Arguments {
             return new Argument<>(name, StringArgumentType.word(), (raw, ctx) -> {
                 String nameStr = (String) raw;
                 var player = Bukkit.getPlayer(nameStr);
-                return player != null ? List.of(player) : List.of();
+                return (T) (player != null ? List.of(player) : List.of());
             });
         } catch (Exception ignored) {
         }
         return new Argument<>(name, StringArgumentType.word(), (raw, ctx) -> {
             String nameStr = (String) raw;
             var player = OumLib.proxy().getPlayer(nameStr).orElse(null);
-            return player != null ? List.of(player) : List.of();
+            return (T) (player != null ? List.of(player) : List.of());
         });
     }
 
     @Contract("_ -> new")
-    public static @NonNull Argument<?> world(String name) {
+    @SuppressWarnings("unchecked")
+    public static <T> @NonNull Argument<T> world(String name) {
         try {
             Class.forName("io.papermc.paper.command.brigadier.argument.ArgumentTypes");
-            return (Argument<?>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
+            return (Argument<T>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
                     .getDeclaredMethod("createWorldArgument", String.class)
                     .invoke(null, name);
         } catch (Exception ignored) {
@@ -140,10 +144,11 @@ public final class Arguments {
     }
 
     @Contract("_ -> new")
-    public static @NonNull Argument<?> key(String name) {
+    @SuppressWarnings("unchecked")
+    public static <T> @NonNull Argument<T> key(String name) {
         try {
             Class.forName("io.papermc.paper.command.brigadier.argument.ArgumentTypes");
-            return (Argument<?>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
+            return (Argument<T>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
                     .getDeclaredMethod("createKeyArgument", String.class)
                     .invoke(null, name);
         } catch (Exception ignored) {
@@ -200,11 +205,11 @@ public final class Arguments {
     }
 
     @Contract("_ -> new")
-    @SuppressWarnings("DataFlowIssue")
-    public static @NonNull Argument<?> offlinePlayer(String name) {
+    @SuppressWarnings({"DataFlowIssue", "unchecked"})
+    public static <T> @NonNull Argument<T> offlinePlayer(String name) {
         try {
             Class.forName("org.bukkit.Bukkit");
-            return new Argument<>(name, StringArgumentType.word(), (raw, ctx) -> {
+            return (Argument<T>) new Argument<>(name, StringArgumentType.word(), (raw, ctx) -> {
                 String nameStr = (String) raw;
                 return Bukkit.getOfflinePlayer(nameStr);
             }).suggests(context -> {
@@ -220,15 +225,15 @@ public final class Arguments {
             });
         } catch (Exception ignored) {
         }
-        return new Argument<>(name, StringArgumentType.word(), (raw, ctx) -> (String) raw);
+        return (Argument<T>) new Argument<>(name, StringArgumentType.word(), (raw, ctx) -> (String) raw);
     }
 
     @Contract("_ -> new")
-    @SuppressWarnings("DataFlowIssue")
-    public static @NonNull Argument<?> entity(String name) {
+    @SuppressWarnings("unchecked")
+    public static <T> @NonNull Argument<T> entity(String name) {
         try {
             Class.forName("io.papermc.paper.command.brigadier.argument.ArgumentTypes");
-            return (Argument<?>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
+            return (Argument<T>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
                     .getDeclaredMethod("createEntityArgument", String.class)
                     .invoke(null, name);
         } catch (Exception ignored) {
@@ -237,11 +242,11 @@ public final class Arguments {
     }
 
     @Contract("_ -> new")
-    @SuppressWarnings("DataFlowIssue")
-    public static @NonNull Argument<?> entities(String name) {
+    @SuppressWarnings("unchecked")
+    public static <T> @NonNull Argument<T> entities(String name) {
         try {
             Class.forName("io.papermc.paper.command.brigadier.argument.ArgumentTypes");
-            return (Argument<?>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
+            return (Argument<T>) Class.forName("dev.oum.oumlib.command.platform.PaperCommandHelper")
                     .getDeclaredMethod("createEntitiesArgument", String.class)
                     .invoke(null, name);
         } catch (Exception ignored) {

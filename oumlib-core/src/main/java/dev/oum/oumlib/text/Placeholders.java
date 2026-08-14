@@ -3,6 +3,7 @@ package dev.oum.oumlib.text;
 import dev.oum.oumlib.config.ConfigSection;
 import org.jspecify.annotations.NonNull;
 
+import java.lang.reflect.RecordComponent;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -12,6 +13,19 @@ public final class Placeholders {
 
     private static final Pattern PLACEHOLDER = Pattern.compile("%(.*?)%");
     private static final Map<String, PlaceholderSupplier> registered = new ConcurrentHashMap<>();
+
+    private Placeholders() {
+    }
+
+    @FunctionalInterface
+    public interface PlaceholderSupplier {
+        String get(Object player);
+    }
+
+    @FunctionalInterface
+    public interface ConfigPlaceholderSupplier<T> {
+        String get(Object player, T config);
+    }
 
     public static void register(@NonNull String key, @NonNull PlaceholderSupplier supplier) {
         Objects.requireNonNull(key, "key");
@@ -58,7 +72,7 @@ public final class Placeholders {
     private static <T extends Record> String replaceConfigPlaceholders(String text, T config) {
         String result = text;
         try {
-            for (java.lang.reflect.RecordComponent comp : config.getClass().getRecordComponents()) {
+            for (RecordComponent comp : config.getClass().getRecordComponents()) {
                 Object val = comp.getAccessor().invoke(config);
                 String valStr = val != null ? String.valueOf(val) : "";
                 result = result.replace("%config_" + comp.getName() + "%", valStr);
@@ -74,15 +88,5 @@ public final class Placeholders {
                 .replaceAll("([a-z])([A-Z])", "$1-$2")
                 .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
                 .toLowerCase();
-    }
-
-    @FunctionalInterface
-    public interface PlaceholderSupplier {
-        String get(@NonNull Object player);
-    }
-
-    @FunctionalInterface
-    public interface ConfigPlaceholderSupplier<T extends Record & ConfigSection> {
-        String get(@NonNull Object player, T config);
     }
 }

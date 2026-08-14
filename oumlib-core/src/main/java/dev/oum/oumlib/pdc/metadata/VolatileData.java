@@ -42,6 +42,18 @@ public final class VolatileData implements Listener {
     }
 
     public static <P, C> void set(@NonNull Object target, @NonNull DataKey<P, C> key, @NonNull C value, @Nullable Duration ttl) {
+        set(target, key.key(), value, ttl);
+    }
+
+    public static void set(@NonNull Object target, @NonNull String key, @NonNull Object value) {
+        set(target, resolveKey(key), value, null);
+    }
+
+    public static void set(@NonNull Object target, @NonNull String key, @NonNull Object value, @Nullable Duration ttl) {
+        set(target, resolveKey(key), value, ttl);
+    }
+
+    public static void set(@NonNull Object target, @NonNull NamespacedKey key, @NonNull Object value, @Nullable Duration ttl) {
         Objects.requireNonNull(target);
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
@@ -49,26 +61,37 @@ public final class VolatileData implements Listener {
 
         Instant expiresAt = ttl != null ? Instant.now().plus(ttl) : null;
         STORE.computeIfAbsent(target, t -> new ConcurrentHashMap<>())
-                .put(key.key(), new Entry<>(value, expiresAt));
+                .put(key, new Entry<>(value, expiresAt));
     }
 
     @CheckReturnValue
     @SuppressWarnings("unchecked")
     public static <P, C> @NonNull Optional<C> get(@NonNull Object target, @NonNull DataKey<P, C> key) {
+        return get(target, key.key());
+    }
+
+    @CheckReturnValue
+    public static <T> @NonNull Optional<T> get(@NonNull Object target, @NonNull String key) {
+        return get(target, resolveKey(key));
+    }
+
+    @CheckReturnValue
+    @SuppressWarnings("unchecked")
+    public static <T> @NonNull Optional<T> get(@NonNull Object target, @NonNull NamespacedKey key) {
         Objects.requireNonNull(target);
         Objects.requireNonNull(key);
         Map<NamespacedKey, Entry<?>> targetMap = STORE.get(target);
         if (targetMap == null) return Optional.empty();
 
-        Entry<?> entry = targetMap.get(key.key());
+        Entry<?> entry = targetMap.get(key);
         if (entry == null) return Optional.empty();
 
         if (entry.isExpired()) {
-            targetMap.remove(key.key());
+            targetMap.remove(key);
             return Optional.empty();
         }
 
-        return Optional.of((C) entry.value());
+        return Optional.of((T) entry.value());
     }
 
     @CheckReturnValue
@@ -77,16 +100,34 @@ public final class VolatileData implements Listener {
     }
 
     @CheckReturnValue
+    public static <T> @NonNull T getOrDefault(@NonNull Object target, @NonNull String key, @NonNull T defaultValue) {
+        return get(target, resolveKey(key)).map(val -> (T) val).orElse(defaultValue);
+    }
+
+    @CheckReturnValue
     public static <P, C> boolean has(@NonNull Object target, @NonNull DataKey<P, C> key) {
         return get(target, key).isPresent();
     }
 
+    @CheckReturnValue
+    public static boolean has(@NonNull Object target, @NonNull String key) {
+        return get(target, key).isPresent();
+    }
+
     public static <P, C> void remove(@NonNull Object target, @NonNull DataKey<P, C> key) {
+        remove(target, key.key());
+    }
+
+    public static void remove(@NonNull Object target, @NonNull String key) {
+        remove(target, resolveKey(key));
+    }
+
+    public static void remove(@NonNull Object target, @NonNull NamespacedKey key) {
         Objects.requireNonNull(target);
         Objects.requireNonNull(key);
         Map<NamespacedKey, Entry<?>> targetMap = STORE.get(target);
         if (targetMap != null) {
-            targetMap.remove(key.key());
+            targetMap.remove(key);
         }
     }
 
@@ -97,6 +138,13 @@ public final class VolatileData implements Listener {
 
     public static void clearAll() {
         STORE.clear();
+    }
+
+    private static @NonNull NamespacedKey resolveKey(@NonNull String key) {
+        if (key.contains(":")) {
+            return NamespacedKey.fromString(key);
+        }
+        return new NamespacedKey(OumLib.plugin(), key);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

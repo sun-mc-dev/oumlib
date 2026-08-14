@@ -275,7 +275,6 @@ public final class Database {
         this.slowQueryThresholdMs = ms;
     }
 
-    @CheckReturnValue
     public @NonNull Promise<Integer> executeUpdate(@NonNull String sql, Object... params) {
         return Promise.supplyVirtual(() -> {
             long start = System.currentTimeMillis();
@@ -364,7 +363,6 @@ public final class Database {
         return (RowMapper<T>) mapperCache.computeIfAbsent(type, Database::buildMapper);
     }
 
-    @CheckReturnValue
     public @NonNull Promise<int[]> executeBatch(@NonNull String sql, @NonNull List<Object[]> parameterBatch) {
         return Promise.supplyVirtual(() -> {
             long start = System.currentTimeMillis();
