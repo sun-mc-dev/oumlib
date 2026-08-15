@@ -1,129 +1,217 @@
-# Mathematical Utilities
+# Math
 
-OumLib features a platform-independent mathematical package `dev.oum.oumlib.math` optimized for 3D physics, spatial partitioning, expressions evaluation, and noise generation.
+`dev.oum.oumlib.math` · Paper / Velocity
 
 ---
 
-## Real-world Example: Regional Claim Protection Zone
+## Vector2D
 
-Here is a protection system that maps safe-zone regions (Sphere, Cylinder, or AABB boxes) and checks if a player is standing inside the safe zone:
+Immutable 2D vector (x, z) — useful for flat-plane calculations like polygon regions, map coordinates, or distance checks ignoring Y.
 
 ```java
-import dev.oum.oumlib.math.Vector3D;
-import dev.oum.oumlib.math.Volume3D;
-import dev.oum.oumlib.math.Volume3D.AABB3D;
-import dev.oum.oumlib.math.Volume3D.Cylinder3D;
-import org.bukkit.Location;
-import org.bukkit.entity.Player;
-import java.util.ArrayList;
-import java.util.List;
+Vector2D a = Vector2D.of(10, 20);
+Vector2D b = Vector2D.of(30, 40);
 
-public final class ProtectionZoneManager {
-    private final List<Volume3D> safeZones = new ArrayList<>();
+Vector2D sum = a.add(b);           // (40, 60)
+Vector2D diff = a.subtract(b);     // (-20, -20)
+Vector2D scaled = a.multiply(2);   // (20, 40)
+double dist = a.distance(b);       // distance between two points
+double dot = a.dot(b);
+Vector2D norm = a.normalize();
+Vector2D mid = a.lerp(b, 0.5);     // midpoint
+```
 
-    public void createZones() {
-        safeZones.add(new AABB3D(new Vector3D(-100, 0, -100), new Vector3D(100, 256, 100)));
-        safeZones.add(new Cylinder3D(new Vector3D(200, 64, 200), 15.0, 10.0));
-    }
+Convert to/from Bukkit types:
 
-    public boolean isSafe(Player player) {
-        Location loc = player.getLocation();
-        Vector3D pt = new Vector3D(loc.getX(), loc.getY(), loc.getZ());
-        
-        for (Volume3D zone : safeZones) {
-            if (zone.contains(pt)) {
-                return true;
-            }
-        }
-        return false;
-    }
+```java
+Vector2D from = Vector2D.fromLocation(location);
+Location loc = from.toLocation(world, 64.0); // add Y
+```
+
+---
+
+## Vector3D
+
+Immutable 3D vector. Same idea as Bukkit's `Vector` but immutable and with more math.
+
+```java
+Vector3D a = Vector3D.fromLocation(location);
+Vector3D b = Vector3D.fromEntity(entity);
+
+Vector3D sum = a.add(b);
+Vector3D cross = a.cross(b);
+double dot = a.dot(b);
+double dist = a.distance(b);
+Vector3D norm = a.normalize();
+Vector3D lerped = a.lerp(b, 0.5);
+Vector3D rotated = a.rotateY(Math.toRadians(45));
+```
+
+Convert back:
+
+```java
+Vector bukkit = v.toBukkitVector();
+Location loc = v.toLocation(world);
+```
+
+Binary I/O:
+
+```java
+v.write(dataOutputStream);
+Vector3D v = Vector3D.read(dataInputStream);
+```
+
+---
+
+## Volume3D
+
+Axis-aligned bounding box defined by two corners:
+
+```java
+Volume3D box = Volume3D.of(min, max);
+
+boolean inside = box.contains(point);
+boolean overlaps = box.intersects(otherBox);
+Volume3D expanded = box.expand(2.0);
+Vector3D center = box.center();
+```
+
+---
+
+## FastMath
+
+Common math operations without the overhead of `Math.`:
+
+```java
+FastMath.clamp(value, min, max);
+FastMath.lerp(a, b, t);
+FastMath.floor(double);
+FastMath.ceil(double);
+FastMath.round(double, decimals);
+FastMath.sq(x);                // x * x
+FastMath.distanceSquared(x1, y1, z1, x2, y2, z2);
+```
+
+---
+
+## Noise
+
+Perlin and simplex noise for terrain generation, particle effects, or anything that needs smooth randomness:
+
+```java
+double val = Noise.perlin2D(x, z, seed, frequency);
+double val = Noise.simplex2D(x, z, seed);
+double val = Noise.perlin3D(x, y, z, seed, frequency);
+
+// Octave noise for more detail
+double val = Noise.fractal2D(x, z, seed, octaves, frequency, lacunarity, persistence);
+```
+
+---
+
+## Easing
+
+Easing functions for animations:
+
+```java
+double t = Easing.easeInOutCubic(progress);  // 0.0 to 1.0
+double t = Easing.easeOutBounce(progress);
+double t = Easing.easeInElastic(progress);
+```
+
+Available: `linear`, `easeInQuad`, `easeOutQuad`, `easeInOutQuad`, `easeInCubic`, `easeOutCubic`, `easeInOutCubic`, `easeInBack`, `easeOutBack`, `easeInOutBack`, `easeInElastic`, `easeOutElastic`, `easeInBounce`, `easeOutBounce`, `easeInOutBounce`.
+
+---
+
+## MathEval
+
+Evaluate math expressions from strings:
+
+```java
+double result = MathEval.evaluate("2 + 3 * 4");         // 14.0
+double result = MathEval.evaluate("sin(pi / 2)");       // 1.0
+double result = MathEval.evaluate("sqrt(144)");          // 12.0
+```
+
+Supports: `+`, `-`, `*`, `/`, `^`, `%`, parentheses, `sin`, `cos`, `tan`, `sqrt`, `abs`, `floor`, `ceil`, `round`, `min`, `max`, `pi`, `e`.
+
+---
+
+## Geometry3D
+
+3D geometry helpers:
+
+```java
+Geometry3D.rotateAroundY(point, origin, angle);
+Geometry3D.rotateAroundX(point, origin, angle);
+Geometry3D.closestPointOnLine(lineStart, lineEnd, point);
+Geometry3D.distanceToLine(lineStart, lineEnd, point);
+```
+
+---
+
+## Locations
+
+Location serialization and utilities:
+
+```java
+String serialized = Locations.serialize(location);       // "world,10.5,64.0,20.3,90.0,0.0"
+Location loc = Locations.deserialize(serialized);
+
+Locations.center(location);   // center of the block
+Locations.blockLocation(loc); // snap to block coords
+```
+
+---
+
+## Chance
+
+Random chance checks:
+
+```java
+if (Chance.percent(25)) {
+    // 25% chance to run
+}
+
+if (Chance.oneIn(10)) {
+    // 1 in 10 chance
 }
 ```
 
 ---
 
-## Real-world Example: Dynamic Skill Damage Evaluation
+## Matrix3
 
-Evaluate dynamic math formulas loaded from config files (e.g. `base_dmg * (1.5 ^ level)`), replacing variables with active player levels dynamically:
+3x3 rotation matrix:
 
 ```java
-import dev.oum.oumlib.math.MathEval;
-import dev.oum.oumlib.text.Text;
-import org.bukkit.entity.Player;
-import java.util.Map;
-
-public final class SkillDamageEvaluator {
-    public void castSkill(Player player, String formula) {
-        MathEval eval = new MathEval(formula);
-        double dmg = eval.evaluate(Map.of(
-            "level", (double) player.getLevel(),
-            "base_dmg", 10.0
-        ));
-
-        Text.send(player, "<gold>You dealt " + dmg + " damage!</gold>");
-    }
-}
+Matrix3 rot = Matrix3.rotationY(Math.toRadians(45));
+Vector3D rotated = rot.multiply(vector);
 ```
 
 ---
 
-## Easing Animations
+## Quaternion
 
-Standard mathematical easing functions for UI displays:
+Quaternion rotations:
 
 ```java
-import dev.oum.oumlib.math.Easing;
-
-public final class AnimationPlotter {
-    public double getProgress(double time) {
-        return Easing.BOUNCE_OUT.apply(time);
-    }
-}
+Quaternion q = Quaternion.fromAxisAngle(0, 1, 0, Math.toRadians(90));
+Vector3D rotated = q.rotate(vector);
+Quaternion combined = q1.multiply(q2);
 ```
 
 ---
 
-## Vector3D Reference
+## WeightedSelector
 
-Immutable Vector operations:
-
-```java
-import dev.oum.oumlib.math.Vector3D;
-
-public final class VectorMath {
-    public void calculate() {
-        Vector3D v1 = new Vector3D(1.0, 2.0, 3.0);
-        Vector3D v2 = new Vector3D(4.0, 5.0, 6.0);
-
-        Vector3D added = v1.add(v2);
-        Vector3D dot = v1.multiply(v2.normalize());
-    }
-}
-```
-
----
-
-## Loot Table Chance Rolles
-
-Determine loot rewards using weights:
+Pick random items with weights:
 
 ```java
-import dev.oum.oumlib.math.Chance;
-import dev.oum.oumlib.math.WeightedSelector;
-import java.util.Map;
+WeightedSelector<String> selector = WeightedSelector.<String>create()
+    .add("common", 60)
+    .add("rare", 30)
+    .add("legendary", 10);
 
-public final class LootRoller {
-    public String rollReward() {
-        if (Chance.percent(5.0)) {
-            return "special_crate";
-        }
-
-        WeightedSelector<String> selector = WeightedSelector.of(Map.of(
-            "gold", 70.0,
-            "diamond", 25.0,
-            "netherite", 5.0
-        ));
-        return selector.select();
-    }
-}
+String picked = selector.select(); // weighted random pick
 ```

@@ -3,24 +3,25 @@ package dev.oum.oumlib.inventory;
 import com.destroystokyo.paper.profile.PlayerProfile;
 import com.google.gson.Gson;
 import dev.oum.oumlib.OumLib;
-import dev.oum.oumlib.util.ItemSerializer;
+import dev.oum.oumlib.bridge.item.ItemBridge;
+import dev.oum.oumlib.pdc.DataKey;
+import dev.oum.oumlib.pdc.PdcModel;
+import dev.oum.oumlib.text.Text;
 import io.papermc.paper.datacomponent.DataComponentType;
-import io.papermc.paper.datacomponent.DataComponentTypes;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemRarity;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.profile.PlayerTextures;
-import org.bukkit.tag.DamageTypeTags;
 import org.jetbrains.annotations.CheckReturnValue;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.Nullable;
@@ -30,12 +31,13 @@ import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public final class ItemBuilder {
 
-    private static final MiniMessage MM = MiniMessage.miniMessage();
     private static final Gson GSON = new Gson();
+    private final List<Consumer<ItemStack>> dataModifiers = new ArrayList<>();
     private final ItemMeta meta;
     private ItemStack stack;
 
@@ -51,14 +53,25 @@ public final class ItemBuilder {
 
     @Contract("_ -> new")
     @CheckReturnValue
-    public static @NonNull ItemBuilder of(Material material) {
+    public static @NonNull ItemBuilder of(@NonNull Material material) {
         return new ItemBuilder(material);
     }
 
     @Contract("_ -> new")
     @CheckReturnValue
-    public static @NonNull ItemBuilder of(ItemStack item) {
+    public static @NonNull ItemBuilder of(@NonNull ItemStack item) {
         return new ItemBuilder(item);
+    }
+
+    @Contract("_ -> new")
+    @CheckReturnValue
+    public static @NonNull ItemBuilder from(@NonNull String identifier) {
+        return ItemBridge.getItem(identifier)
+                .map(ItemBuilder::of)
+                .orElseGet(() -> {
+                    Material mat = Material.matchMaterial(identifier);
+                    return of(mat != null ? mat : Material.STONE);
+                });
     }
 
     @Contract("_, _, _ -> new")
@@ -67,190 +80,246 @@ public final class ItemBuilder {
         return of(material).name(miniMessageName).lore(loreLines).build();
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder name(@NonNull String miniMessage) {
-        meta.displayName(MM.deserialize("<!italic>" + miniMessage));
+        meta.displayName(Text.parse("<!italic>" + miniMessage));
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder name(@Nullable Component component) {
         meta.displayName(component);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder lore(String @NonNull ... lines) {
         meta.lore(Arrays.stream(lines)
-                .map(l -> MM.deserialize("<!italic><gray>" + l))
+                .map(l -> Text.parse("<!italic><gray>" + l))
                 .collect(Collectors.toList()));
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder lore(Component @NonNull ... lines) {
+        meta.lore(Arrays.asList(lines));
+        return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder lore(@Nullable List<Component> lines) {
         meta.lore(lines);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "-> this", mutates = "this")
     public @NonNull ItemBuilder clearLore() {
         meta.lore(null);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder addLore(String @NonNull ... lines) {
         List<Component> currentLore = meta.lore();
         if (currentLore == null) currentLore = new ArrayList<>();
         List<Component> newLines = Arrays.stream(lines)
-                .map(l -> MM.deserialize("<!italic><gray>" + l))
+                .map(l -> Text.parse("<!italic><gray>" + l))
                 .toList();
         currentLore.addAll(newLines);
         meta.lore(currentLore);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder addLore(Component @NonNull ... lines) {
+        List<Component> currentLore = meta.lore();
+        if (currentLore == null) currentLore = new ArrayList<>();
+        currentLore.addAll(Arrays.asList(lines));
+        meta.lore(currentLore);
+        return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder amount(int amount) {
         stack.setAmount(amount);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder type(@NonNull Material material) {
         stack = stack.withType(material);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_, _ -> this", mutates = "this")
     public @NonNull ItemBuilder enchant(@NonNull Enchantment e, int level) {
         meta.addEnchant(e, level, true);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "-> this", mutates = "this")
     public @NonNull ItemBuilder glow() {
-        meta.setEnchantmentGlintOverride(true);
+        return glow(true);
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder glow(boolean glow) {
+        meta.setEnchantmentGlintOverride(glow);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder flag(ItemFlag @NonNull ... flags) {
         meta.addItemFlags(flags);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     @SuppressWarnings("deprecation")
     public @NonNull ItemBuilder customModelData(@Nullable Integer data) {
         meta.setCustomModelData(data);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder modelData(int data) {
+        return customModelData(data);
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder unbreakable(boolean value) {
         meta.setUnbreakable(value);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder itemModel(@NonNull Key key) {
         meta.setItemModel(NamespacedKey.fromString(key.asString()));
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder itemModel(@NonNull NamespacedKey key) {
         meta.setItemModel(key);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder glintOverride(boolean glint) {
         meta.setEnchantmentGlintOverride(glint);
         return this;
     }
 
-    @CheckReturnValue
-    public @NonNull ItemBuilder maxStackSize(int maxStackSize) {
-        meta.setMaxStackSize(maxStackSize);
-        return this;
-    }
 
-    @CheckReturnValue
-    public @NonNull ItemBuilder maxDamage(int maxDamage) {
-        stack.setData(DataComponentTypes.MAX_DAMAGE, maxDamage);
-        return this;
-    }
-
-    @CheckReturnValue
-    public @NonNull ItemBuilder fireResistant(boolean resistant) {
-        if (resistant) {
-            meta.setDamageResistant(DamageTypeTags.IS_FIRE);
-        } else {
-            meta.setDamageResistant(null);
-        }
-        return this;
-    }
-
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder hideTooltip(boolean hide) {
         meta.setHideTooltip(hide);
         return this;
     }
 
+    @Contract(value = "_, _ -> this", mutates = "this")
     @SuppressWarnings({"unchecked", "rawtypes"})
-    @CheckReturnValue
     public @NonNull ItemBuilder data(DataComponentType.@NonNull Valued type, @NonNull Object value) {
-        stack.setItemMeta(meta);
-        stack.setData(type, value);
+        dataModifiers.add(s -> s.setData(type, value));
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder removeData(@NonNull DataComponentType type) {
-        stack.setItemMeta(meta);
-        stack.unsetData(type);
+        dataModifiers.add(s -> s.unsetData(type));
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder rarity(@NonNull ItemRarity rarity) {
+        dataModifiers.add(s -> DataComponents.setRarity(s, rarity));
+        return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder maxStackSize(int maxStackSize) {
+        dataModifiers.add(s -> DataComponents.setMaxStackSize(s, maxStackSize));
+        return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder maxDamage(int maxDamage) {
+        dataModifiers.add(s -> DataComponents.setMaxDamage(s, maxDamage));
+        return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder damage(int damage) {
+        dataModifiers.add(s -> DataComponents.setDamage(s, damage));
+        return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder itemName(@NonNull Component itemName) {
+        dataModifiers.add(s -> DataComponents.setItemName(s, itemName));
+        return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder repairCost(int cost) {
+        dataModifiers.add(s -> DataComponents.setRepairCost(s, cost));
+        return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ItemBuilder fireResistant(boolean fireResistant) {
+        dataModifiers.add(s -> DataComponents.setFireResistant(s, fireResistant));
+        return this;
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
+    public <T extends Record> @NonNull ItemBuilder pdc(@NonNull T recordInstance) {
+        PdcModel.write(meta.getPersistentDataContainer(), recordInstance);
+        return this;
+    }
+
+    @Contract(value = "_, _ -> this", mutates = "this")
+    public <P, C> @NonNull ItemBuilder pdc(@NonNull DataKey<P, C> key, @NonNull C value) {
+        meta.getPersistentDataContainer().set(key.key(), key.type(), value);
+        return this;
+    }
+
+    @Contract(value = "_, _ -> this", mutates = "this")
     public @NonNull ItemBuilder pdc(@NonNull String key, @NonNull String value) {
         NamespacedKey nsk = new NamespacedKey(OumLib.plugin(), key);
         meta.getPersistentDataContainer().set(nsk, PersistentDataType.STRING, value);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_, _ -> this", mutates = "this")
     public @NonNull ItemBuilder pdc(@NonNull String key, int value) {
         NamespacedKey nsk = new NamespacedKey(OumLib.plugin(), key);
         meta.getPersistentDataContainer().set(nsk, PersistentDataType.INTEGER, value);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_, _ -> this", mutates = "this")
     public @NonNull ItemBuilder pdc(@NonNull String key, double value) {
         NamespacedKey nsk = new NamespacedKey(OumLib.plugin(), key);
         meta.getPersistentDataContainer().set(nsk, PersistentDataType.DOUBLE, value);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_, _ -> this", mutates = "this")
     public @NonNull ItemBuilder pdc(@NonNull String key, boolean value) {
         NamespacedKey nsk = new NamespacedKey(OumLib.plugin(), key);
         meta.getPersistentDataContainer().set(nsk, PersistentDataType.BYTE, (byte) (value ? 1 : 0));
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_, _ -> this", mutates = "this")
     public @NonNull ItemBuilder pdc(@NonNull String key, long value) {
         NamespacedKey nsk = new NamespacedKey(OumLib.plugin(), key);
         meta.getPersistentDataContainer().set(nsk, PersistentDataType.LONG, value);
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_, _ -> this", mutates = "this")
     public @NonNull ItemBuilder pdc(@NonNull String key, @Nullable List<String> value) {
         NamespacedKey nsk = new NamespacedKey(OumLib.plugin(), key);
         if (value == null) {
@@ -261,7 +330,7 @@ public final class ItemBuilder {
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_, _ -> this", mutates = "this")
     public @NonNull ItemBuilder pdc(@NonNull String key, @Nullable ItemStack value) {
         NamespacedKey nsk = new NamespacedKey(OumLib.plugin(), key);
         if (value == null) {
@@ -272,7 +341,7 @@ public final class ItemBuilder {
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_, _ -> this", mutates = "this")
     public @NonNull ItemBuilder pdc(@NonNull String key, ItemStack @Nullable [] value) {
         NamespacedKey nsk = new NamespacedKey(OumLib.plugin(), key);
         if (value == null) {
@@ -283,19 +352,18 @@ public final class ItemBuilder {
         return this;
     }
 
-    @CheckReturnValue
+    @Contract(value = "_, _ -> this", mutates = "this")
     public @NonNull ItemBuilder pdc(@NonNull String key, @Nullable Component value) {
         NamespacedKey nsk = new NamespacedKey(OumLib.plugin(), key);
         if (value == null) {
             meta.getPersistentDataContainer().remove(nsk);
         } else {
-            meta.getPersistentDataContainer().set(nsk, PersistentDataType.STRING, MM.serialize(value));
+            meta.getPersistentDataContainer().set(nsk, PersistentDataType.STRING, Text.serialize(value));
         }
         return this;
     }
 
-    @CheckReturnValue
-    @SuppressWarnings("unused")
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder skull(@NonNull OfflinePlayer player) {
         if (meta instanceof SkullMeta skullMeta) {
             skullMeta.setOwningPlayer(player);
@@ -303,8 +371,7 @@ public final class ItemBuilder {
         return this;
     }
 
-    @CheckReturnValue
-    @SuppressWarnings("unused")
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ItemBuilder skull(@NonNull String textureValue) {
         if (meta instanceof SkullMeta skullMeta) {
             try {
@@ -342,8 +409,12 @@ public final class ItemBuilder {
     }
 
     @Contract(" -> new")
+    @CheckReturnValue
     public @NonNull ItemStack build() {
         stack.setItemMeta(meta);
+        for (Consumer<ItemStack> modifier : dataModifiers) {
+            modifier.accept(stack);
+        }
         return stack;
     }
 }

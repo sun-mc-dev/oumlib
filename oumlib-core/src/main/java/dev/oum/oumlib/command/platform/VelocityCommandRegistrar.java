@@ -8,14 +8,18 @@ import com.velocitypowered.api.command.CommandMeta;
 import com.velocitypowered.api.command.CommandSource;
 import com.velocitypowered.api.proxy.Player;
 import dev.oum.oumlib.OumLib;
+import dev.oum.oumlib.bridge.permission.Permission;
 import dev.oum.oumlib.command.*;
-import dev.oum.oumlib.util.Permission;
+import dev.oum.oumlib.cooldown.CooldownManager;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import org.jspecify.annotations.NonNull;
 
+import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 public final class VelocityCommandRegistrar implements CommandRegistrar {
 
@@ -49,7 +53,9 @@ public final class VelocityCommandRegistrar implements CommandRegistrar {
         }
 
         if (builder.executor() != null) {
-            attachArguments(root, builder.arguments(), builder.executor(), builder);
+            attachArguments(root, builder.arguments(), builder.executor(), builder.label(),
+                    builder.permission(), builder.cooldownManager(), builder.cooldownDuration(),
+                    builder.cooldownMessage(), builder.cooldownBypass(), builder.exceptionHandler());
         }
 
         return root;
@@ -77,7 +83,15 @@ public final class VelocityCommandRegistrar implements CommandRegistrar {
         }
 
         if (sub.executor() != null) {
-            attachArguments(subLiteral, sub.arguments(), sub.executor(), builder);
+            CooldownManager<UUID> cdMgr = sub.cooldownManager() != null ? sub.cooldownManager() : builder.cooldownManager();
+            Duration cdDur = sub.cooldownDuration() != null ? sub.cooldownDuration() : builder.cooldownDuration();
+            String cdMsg = sub.cooldownDuration() != null ? sub.cooldownMessage() : builder.cooldownMessage();
+            Predicate<CommandContext> cdBypass = sub.cooldownBypass() != null ? sub.cooldownBypass() : builder.cooldownBypass();
+            BiConsumer<CommandContext, Throwable> exHandler = sub.exceptionHandler() != null ? sub.exceptionHandler() : builder.exceptionHandler();
+            String perm = sub.permission() != null ? sub.permission() : builder.permission();
+
+            attachArguments(subLiteral, sub.arguments(), sub.executor(), builder.label() + " " + sub.label(),
+                    perm, cdMgr, cdDur, cdMsg, cdBypass, exHandler);
         }
         return subLiteral;
     }
@@ -86,17 +100,25 @@ public final class VelocityCommandRegistrar implements CommandRegistrar {
             LiteralArgumentBuilder<CommandSource> node,
             @NonNull List<Argument<?>> args,
             Consumer<CommandContext> exec,
-            CommandBuilder builder
+            String fullLabel,
+            String permission,
+            CooldownManager<UUID> cdMgr,
+            Duration cdDur,
+            String cdMsg,
+            Predicate<CommandContext> cdBypass,
+            BiConsumer<CommandContext, Throwable> exHandler
     ) {
         if (args.isEmpty()) {
             node.executes(ctx -> {
-                handleExecution(ctx.getSource(), new ArgumentMap(ctx), exec, builder);
+                handleExecution(ctx.getSource(), new ArgumentMap(ctx), exec, fullLabel,
+                        permission, cdMgr, cdDur, cdMsg, cdBypass, exHandler);
                 return 1;
             });
             return;
         }
 
-        RequiredArgumentBuilder<CommandSource, ?> first = buildArgChain(args, exec, builder);
+        RequiredArgumentBuilder<CommandSource, ?> first = buildArgChain(args, exec, fullLabel,
+                permission, cdMgr, cdDur, cdMsg, cdBypass, exHandler);
         node.then(first);
     }
 
@@ -104,7 +126,13 @@ public final class VelocityCommandRegistrar implements CommandRegistrar {
     private RequiredArgumentBuilder<CommandSource, ?> buildArgChain(
             @NonNull List<Argument<?>> args,
             Consumer<CommandContext> exec,
-            CommandBuilder builder
+            String fullLabel,
+            String permission,
+            CooldownManager<UUID> cdMgr,
+            Duration cdDur,
+            String cdMsg,
+            Predicate<CommandContext> cdBypass,
+            BiConsumer<CommandContext, Throwable> exHandler
     ) {
         RequiredArgumentBuilder head = null;
         RequiredArgumentBuilder prev = null;
@@ -119,7 +147,8 @@ public final class VelocityCommandRegistrar implements CommandRegistrar {
             }
             if (i == args.size() - 1) {
                 current.executes(ctx -> {
-                    handleExecution((CommandSource) ctx.getSource(), new ArgumentMap(ctx), exec, builder);
+                    handleExecution((CommandSource) ctx.getSource(), new ArgumentMap(ctx), exec, fullLabel,
+                            permission, cdMgr, cdDur, cdMsg, cdBypass, exHandler);
                     return 1;
                 });
             }
@@ -138,35 +167,39 @@ public final class VelocityCommandRegistrar implements CommandRegistrar {
             CommandSource source,
             ArgumentMap map,
             Consumer<CommandContext> exec,
-            @NonNull CommandBuilder builder
+            String label,
+            String permission,
+            CooldownManager<UUID> cdMgr,
+            Duration cdDur,
+            String cdMsg,
+            Predicate<CommandContext> cdBypass,
+            BiConsumer<CommandContext, Throwable> exHandler
     ) {
-        CommandContext context = new CommandContext(source, source, builder.label(), map);
-        if (builder.cooldown() != null && source instanceof Player player) {
-            boolean bypassed;
-            if (builder.cooldownBypass() != null) {
-                bypassed = builder.cooldownBypass().test(context);
-            } else {
-                String bypassPerm = (builder.permission() != null ? builder.permission() : builder.label()) + ".bypass";
-                bypassed = player.hasPermission(bypassPerm);
+        CommandContext context = new CommandContext(source, source, label, map);
+        if (source instanceof Player player) {
+            if (cdMgr != null && cdDur != null) {
+                boolean bypassed = (cdBypass != null)
+                        ? cdBypass.test(context)
+                        : player.hasPermission((permission != null ? permission : label.replace(' ', '.')) + ".bypass");
+                if (!bypassed && cdMgr.isOnCooldown(player.getUniqueId())) {
+                    String remaining = cdMgr.formatRemaining(player.getUniqueId());
+                    player.sendMessage(MiniMessage.miniMessage()
+                            .deserialize(cdMsg.replace("<remaining>", remaining)));
+                    return;
+                }
+                cdMgr.apply(player.getUniqueId(), cdDur);
             }
-            if (!bypassed && builder.cooldown().isOnCooldown(player.getUniqueId())) {
-                long remaining = builder.cooldown().remainingSeconds(player.getUniqueId());
-                player.sendMessage(MiniMessage.miniMessage()
-                        .deserialize(builder.cooldownMessage().replace("<remaining>", String.valueOf(remaining))));
-                return;
-            }
-            builder.cooldown().set(player.getUniqueId());
         }
         try {
             exec.accept(context);
         } catch (Throwable ex) {
-            BiConsumer<CommandContext, Throwable> handler = builder.exceptionHandler() != null
-                    ? builder.exceptionHandler()
+            BiConsumer<CommandContext, Throwable> handler = exHandler != null
+                    ? exHandler
                     : OumLib.commandErrorHandler();
             if (handler != null) {
                 handler.accept(context, ex);
             } else {
-                OumLib.logError("Unhandled exception executing command /" + builder.label(), ex);
+                OumLib.logError("Unhandled exception executing command /" + label, ex);
             }
         }
     }

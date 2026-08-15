@@ -7,6 +7,10 @@ public interface EconomyProvider {
 
     @NonNull String name();
 
+    default boolean isAvailable() {
+        return true;
+    }
+
     boolean has(@NonNull OfflinePlayer player, double amount);
 
     boolean withdraw(@NonNull OfflinePlayer player, double amount);

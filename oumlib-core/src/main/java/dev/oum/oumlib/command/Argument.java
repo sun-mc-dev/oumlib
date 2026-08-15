@@ -4,7 +4,10 @@ import com.mojang.brigadier.Message;
 import com.mojang.brigadier.arguments.ArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import dev.oum.oumlib.scheduler.Scheduler;
+import org.jetbrains.annotations.CheckReturnValue;
+import org.jetbrains.annotations.Contract;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -27,8 +30,8 @@ public final class Argument<T> {
     private final BiFunction<Object, com.mojang.brigadier.context.CommandContext<?>, T> extractor;
     private SuggestionProvider<?> suggestionProvider;
 
-    public Argument(String name, ArgumentType<?> brigadierType,
-                    BiFunction<Object, com.mojang.brigadier.context.CommandContext<?>, T> extractor) {
+    public Argument(@NonNull String name, @NonNull ArgumentType<?> brigadierType,
+                    @NonNull BiFunction<Object, com.mojang.brigadier.context.CommandContext<?>, T> extractor) {
         this.name = name;
         this.brigadierType = brigadierType;
         this.extractor = extractor;
@@ -41,12 +44,14 @@ public final class Argument<T> {
         }
     }
 
-    public <S> Argument<T> suggests(SuggestionProvider<S> provider) {
+    @Contract(value = "_ -> this", mutates = "this")
+    public <S> @NonNull Argument<T> suggests(@Nullable SuggestionProvider<S> provider) {
         this.suggestionProvider = provider;
         return this;
     }
 
-    public Argument<T> suggests(@NonNull Function<CommandContext, Collection<String>> provider) {
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull Argument<T> suggests(@NonNull Function<CommandContext, Collection<String>> provider) {
         this.suggestionProvider = (ctx, builder) -> {
             var oumCtx = CommandContext.fromBrigadier(ctx);
             for (String s : provider.apply(oumCtx)) {
@@ -57,7 +62,8 @@ public final class Argument<T> {
         return this;
     }
 
-    public Argument<T> suggestsRich(@NonNull Function<CommandContext, Collection<RichSuggestion>> provider) {
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull Argument<T> suggestsRich(@NonNull Function<CommandContext, Collection<RichSuggestion>> provider) {
         this.suggestionProvider = (ctx, builder) -> {
             var oumCtx = CommandContext.fromBrigadier(ctx);
             for (RichSuggestion s : provider.apply(oumCtx)) {
@@ -73,7 +79,8 @@ public final class Argument<T> {
         return this;
     }
 
-    public Argument<T> suggestsAsync(@NonNull Function<CommandContext, CompletableFuture<Collection<String>>> provider) {
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull Argument<T> suggestsAsync(@NonNull Function<CommandContext, CompletableFuture<Collection<String>>> provider) {
         this.suggestionProvider = (ctx, builder) -> {
             var oumCtx = CommandContext.fromBrigadier(ctx);
             return provider.apply(oumCtx).thenApply(suggestions -> {
@@ -86,7 +93,8 @@ public final class Argument<T> {
         return this;
     }
 
-    public Argument<T> suggestsCached(
+    @Contract(value = "_, _ -> this", mutates = "this")
+    public @NonNull Argument<T> suggestsCached(
             @NonNull Function<CommandContext, Collection<String>> provider,
             @NonNull Duration cacheDuration
     ) {
@@ -112,7 +120,8 @@ public final class Argument<T> {
         return this;
     }
 
-    public Argument<T> suggestsCachedAsync(
+    @Contract(value = "_, _ -> this", mutates = "this")
+    public @NonNull Argument<T> suggestsCachedAsync(
             @NonNull Function<CommandContext, CompletableFuture<Collection<String>>> provider,
             @NonNull Duration cacheDuration
     ) {
@@ -139,7 +148,8 @@ public final class Argument<T> {
         return this;
     }
 
-    public Argument<T> suggestsVelocitySpigot(@NonNull String queryType) {
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull Argument<T> suggestsVelocitySpigot(@NonNull String queryType) {
         this.suggestionProvider = (ctx, builder) -> {
             var oumCtx = CommandContext.fromBrigadier(ctx);
             if (!oumCtx.isPlayer()) {
@@ -157,7 +167,7 @@ public final class Argument<T> {
                 dos.writeUTF(queryType);
                 dos.writeUTF(builder.getRemaining());
 
-                Class<?> proxyClass = Class.forName("dev.oum.oumlib.util.Proxy");
+                Class<?> proxyClass = Class.forName("dev.oum.oumlib.proxy.Proxy");
                 Class<?> playerInterface = Class.forName("com.velocitypowered.api.proxy.Player");
                 proxyClass.getMethod("sendPluginMessage", playerInterface, String.class, byte[].class)
                         .invoke(null, playerObj, "oumlib:autocomplete", baos.toByteArray());
@@ -183,20 +193,24 @@ public final class Argument<T> {
         return this;
     }
 
-    public String name() {
+    @CheckReturnValue
+    public @NonNull String name() {
         return name;
     }
 
-    public ArgumentType<?> brigadierType() {
+    @CheckReturnValue
+    public @NonNull ArgumentType<?> brigadierType() {
         return brigadierType;
     }
 
-    public BiFunction<Object, com.mojang.brigadier.context.CommandContext<?>, T> extractor() {
+    @CheckReturnValue
+    public @NonNull BiFunction<Object, com.mojang.brigadier.context.CommandContext<?>, T> extractor() {
         return extractor;
     }
 
+    @CheckReturnValue
     @SuppressWarnings("unchecked")
-    public <S> SuggestionProvider<S> suggestionProvider() {
+    public <S> @Nullable SuggestionProvider<S> suggestionProvider() {
         return (SuggestionProvider<S>) suggestionProvider;
     }
 

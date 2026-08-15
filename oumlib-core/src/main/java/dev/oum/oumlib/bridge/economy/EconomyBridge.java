@@ -44,11 +44,24 @@ public final class EconomyBridge {
     }
 
     public static @NonNull Optional<EconomyProvider> getDefaultProvider() {
-        return Optional.ofNullable(providers.get(defaultProviderName));
+        EconomyProvider def = providers.get(defaultProviderName);
+        if (def != null && def.isAvailable()) {
+            return Optional.of(def);
+        }
+        for (EconomyProvider p : providers.values()) {
+            if (p.isAvailable()) {
+                return Optional.of(p);
+            }
+        }
+        return Optional.ofNullable(def);
     }
 
-    public static void setDefaultProvider(@NonNull String name) {
-        defaultProviderName = name.toLowerCase();
+    public static boolean isAvailable() {
+        return getDefaultProvider().map(EconomyProvider::isAvailable).orElse(false);
+    }
+
+    public static boolean isAvailable(@NonNull String providerName) {
+        return getProvider(providerName).map(EconomyProvider::isAvailable).orElse(false);
     }
 
     public static double balance(@NonNull OfflinePlayer player) {

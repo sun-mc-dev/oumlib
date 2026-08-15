@@ -1,79 +1,26 @@
-# Setup & Initialization
+# Setup
 
-OumLib is designed to be shaded and relocated directly into your plugin JAR.
-
----
-
-## Auto-Detection of Integrations
-
-During initialization, OumLib automatically scans the server's plugin environment and hooks into the following platforms if detected:
-- **PlaceholderAPI (PAPI)**: Auto-registers OumLib placeholders into PAPI.
-- **MiniPlaceholders**: Bridges OumLib placeholders into the MiniPlaceholders parsing context.
+`dev.oum.oumlib` · Paper / Velocity / Folia
 
 ---
 
-## 1. Maven Dependency Configuration
+## Paper
 
-Add the JitPack repository and declare `oumlib-core` with `compile` scope in your plugin's `pom.xml`:
-
-```xml
-<dependency>
-    <groupId>com.github.sun-mc-dev.oumlib</groupId>
-    <artifactId>oumlib-core</artifactId>
-    <version>VERSION</version>
-    <scope>compile</scope>
-</dependency>
-```
-
-You must relocate OumLib inside your package space to prevent conflicts with other plugins using different versions of the library:
-
-```xml
-<build>
-    <plugins>
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-shade-plugin</artifactId>
-            <version>3.6.2</version>
-            <configuration>
-                <createDependencyReducedPom>false</createDependencyReducedPom>
-                <relocations>
-                    <relocation>
-                        <pattern>dev.oum.oumlib</pattern>
-                        <shadedPattern>your.plugin.package.libs.oumlib</shadedPattern>
-                    </relocation>
-                </relocations>
-            </configuration>
-            <executions>
-                <execution>
-                    <phase>package</phase>
-                    <goals>
-                        <goal>shade</goal>
-                    </goals>
-                </execution>
-            </executions>
-        </plugin>
-    </plugins>
-</build>
-```
-
----
-
-## 2. Bootstrapping OumLib (Paper / Spigot)
-
-Initialize OumLib in your main class's `onEnable()` method, and call `shutdown()` in `onDisable()` to clean up scheduled tasks and databases:
+Call `OumLib.init(this)` in your `onEnable` and `OumLib.shutdown()` in `onDisable`.
 
 ```java
-import dev.oum.oumlib.OumLib;
-import dev.oum.oumlib.text.Preset;
-import org.bukkit.plugin.java.JavaPlugin;
-
 public final class MyPlugin extends JavaPlugin {
+
     @Override
     public void onEnable() {
         OumLib.init(this)
-            .preset(Preset.INFO, "<gray>[MyPlugin]</gray> ")
-            .preset(Preset.SUCCESS, "<green>[MyPlugin - Success]</green> ")
-            .preset(Preset.ERROR, "<red>[MyPlugin - Error]</red> ");
+            .preset(Preset.SUCCESS, "<green>")
+            .preset(Preset.ERROR, "<red>")
+            .preset(Preset.INFO, "<gray>")
+            .commandErrorHandler((ctx, ex) -> {
+                ctx.reply("<red>Something went wrong.");
+                OumLib.logError("Command error", ex);
+            });
     }
 
     @Override
@@ -83,60 +30,82 @@ public final class MyPlugin extends JavaPlugin {
 }
 ```
 
+`init()` sets up:
+- The scheduler adapter (Bukkit or Folia, detected automatically)
+- The event bus
+- Hologram registry and region tracker
+- Recipe registry
+- Volatile metadata store
+- PlaceholderAPI and MiniPlaceholders hooks (if those plugins are present)
+
+`shutdown()` cleans up everything — cancels tasks, removes holograms, stops config watchers.
+
 ---
 
-## 3. Bootstrapping OumLib (Velocity Proxy)
+## Velocity
 
-Initialize OumLib inside the proxy plugin constructor or initialization event:
+Pass the `ProxyServer` and your plugin instance:
 
 ```java
-import com.velocitypowered.api.event.Subscribe;
-import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
-import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
-import com.velocitypowered.api.plugin.Plugin;
-import com.velocitypowered.api.proxy.ProxyServer;
-import dev.oum.oumlib.OumLib;
-import com.google.inject.Inject;
-
-@Plugin(id = "my-proxy", name = "MyProxy", version = "1.0.0")
-public final class VelocityProxyPlugin {
-    private final ProxyServer server;
+@Plugin(id = "my-proxy-plugin")
+public final class MyProxyPlugin {
 
     @Inject
-    public VelocityProxyPlugin(ProxyServer server) {
-        this.server = server;
-    }
-
-    @Subscribe
-    public void onProxyInitialization(ProxyInitializeEvent event) {
+    public MyProxyPlugin(ProxyServer server) {
         OumLib.init(server, this);
     }
-
-    @Subscribe
-    public void onProxyShutdown(ProxyShutdownEvent event) {
-        OumLib.shutdown();
-    }
 }
+```
+
+Same shutdown call: `OumLib.shutdown()`.
+
+---
+
+## Platform Detection
+
+```java
+OumLib.isPaper();    // true on Paper/Folia
+OumLib.isVelocity(); // true on Velocity
+```
+
+Use `OumLib.plugin()` to get the Bukkit `Plugin` instance, or `OumLib.proxy()` to get the `ProxyServer`.
+
+---
+
+## InitBuilder Options
+
+The `init()` call returns an `InitBuilder` you can chain:
+
+| Method                               | What it does                                   |
+|:-------------------------------------|:-----------------------------------------------|
+| `.preset(Preset.SUCCESS, "<green>")` | Registers a text preset for `Text.send()`      |
+| `.commandErrorHandler(handler)`      | Sets the global error handler for all commands |
+
+---
+
+## Logging
+
+OumLib provides a few logging shortcuts that work on both Paper and Velocity:
+
+```java
+OumLib.logInfo("Server started");
+OumLib.logWarning("Low memory");
+OumLib.logError("Database failed", exception);
+OumLib.logDebug("Loading player data"); // only prints when debug mode is on
+```
+
+Toggle debug mode:
+```java
+OumLib.setDebug(true);
 ```
 
 ---
 
-## Platform Detection Utilities
-
-To build multi-platform modules running across both Paper and Velocity, check the host platform at runtime:
+## Audience Helpers
 
 ```java
-import dev.oum.oumlib.OumLib;
-
-public class PlatformDetector {
-    public void logPlatformInfo() {
-        if (OumLib.isPaper()) {
-            System.out.println("Executing on Paper/Folia Server platform");
-        } else if (OumLib.isVelocity()) {
-            System.out.println("Executing on Velocity Proxy platform");
-        }
-    }
-}
+OumLib.players(); // all online players as an Audience
+OumLib.console(); // the console as an Audience
 ```
 
-These checks are safe to call on either platform and do not raise class loading errors.
+Works on both Paper and Velocity.

@@ -4,6 +4,7 @@ import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.Contract;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -22,11 +23,13 @@ public final class ParticleBuilder {
         this.particle = particle;
     }
 
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ParticleBuilder count(int count) {
         this.count = count;
         return this;
     }
 
+    @Contract(value = "_, _, _ -> this", mutates = "this")
     public @NonNull ParticleBuilder offset(double x, double y, double z) {
         this.offsetX = x;
         this.offsetY = y;
@@ -34,11 +37,18 @@ public final class ParticleBuilder {
         return this;
     }
 
+    @Contract(value = "_ -> this", mutates = "this")
+    public @NonNull ParticleBuilder offset(double offset) {
+        return offset(offset, offset, offset);
+    }
+
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ParticleBuilder speed(double speed) {
         this.speed = speed;
         return this;
     }
 
+    @Contract(value = "_, _ -> this", mutates = "this")
     public @NonNull ParticleBuilder color(@NonNull Color color, float size) {
         if (particle == Particle.DUST) {
             this.data = new Particle.DustOptions(color, size);
@@ -46,6 +56,7 @@ public final class ParticleBuilder {
         return this;
     }
 
+    @Contract(value = "_, _, _ -> this", mutates = "this")
     public @NonNull ParticleBuilder transition(@NonNull Color from, @NonNull Color to, float size) {
         if (particle == Particle.DUST_COLOR_TRANSITION) {
             this.data = new Particle.DustTransition(from, to, size);
@@ -53,6 +64,7 @@ public final class ParticleBuilder {
         return this;
     }
 
+    @Contract(value = "_ -> this", mutates = "this")
     public @NonNull ParticleBuilder data(@Nullable Object data) {
         this.data = data;
         return this;
@@ -70,7 +82,32 @@ public final class ParticleBuilder {
 
     public void spawn(@NonNull Collection<? extends Player> players, @NonNull Location location) {
         for (Player p : players) {
-            p.spawnParticle(particle, location, count, offsetX, offsetY, offsetZ, speed, data);
+            spawn(p, location);
+        }
+    }
+
+    public void ring(@NonNull Location center, double radius, int points) {
+        if (center.getWorld() == null) return;
+        double increment = (2 * Math.PI) / points;
+        for (int i = 0; i < points; i++) {
+            double angle = i * increment;
+            double x = center.getX() + radius * Math.cos(angle);
+            double z = center.getZ() + radius * Math.sin(angle);
+            Location point = new Location(center.getWorld(), x, center.getY(), z);
+            spawn(point);
+        }
+    }
+
+    public void helix(@NonNull Location base, double radius, double height, int points, double rotations) {
+        if (base.getWorld() == null) return;
+        for (int i = 0; i < points; i++) {
+            double progress = (double) i / points;
+            double angle = progress * (2 * Math.PI * rotations);
+            double x = base.getX() + radius * Math.cos(angle);
+            double y = base.getY() + (progress * height);
+            double z = base.getZ() + radius * Math.sin(angle);
+            Location point = new Location(base.getWorld(), x, y, z);
+            spawn(point);
         }
     }
 }

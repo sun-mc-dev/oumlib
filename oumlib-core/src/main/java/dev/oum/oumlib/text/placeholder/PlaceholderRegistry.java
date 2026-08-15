@@ -32,6 +32,17 @@ public final class PlaceholderRegistry {
         return this;
     }
 
+    public <P> PlaceholderRegistry add(String key, Class<P> playerClass, Function<P, String> fn) {
+        ensureNamespace();
+        namespaces.get(currentNamespace).put(key, PlaceholderSupplier.ofPlayer(obj -> {
+            if (playerClass.isInstance(obj)) {
+                return fn.apply(playerClass.cast(obj));
+            }
+            return "";
+        }));
+        return this;
+    }
+
     public PlaceholderRegistry add(String key, BiFunction<Object, Map<String, String>, String> fn) {
         ensureNamespace();
         namespaces.get(currentNamespace).put(key, PlaceholderSupplier.ofParam(fn));

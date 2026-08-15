@@ -7,15 +7,20 @@ import com.velocitypowered.api.proxy.messages.MinecraftChannelIdentifier;
 import dev.oum.oumlib.command.Argument;
 import dev.oum.oumlib.command.CommandContext;
 import dev.oum.oumlib.config.ConfigWatcher;
+import dev.oum.oumlib.entity.hologram.HologramRegistry;
 import dev.oum.oumlib.event.EventBus;
 import dev.oum.oumlib.event.platform.PaperEventBus;
 import dev.oum.oumlib.event.platform.VelocityEventBus;
 import dev.oum.oumlib.inventory.MenuRegistry;
+import dev.oum.oumlib.inventory.recipe.RecipeRegistry;
+import dev.oum.oumlib.math.region.RegionTracker;
+import dev.oum.oumlib.pdc.metadata.VolatileData;
 import dev.oum.oumlib.scheduler.Scheduler;
 import dev.oum.oumlib.scheduler.platform.BukkitSchedulerAdapter;
 import dev.oum.oumlib.scheduler.platform.VelocitySchedulerAdapter;
 import dev.oum.oumlib.text.Preset;
 import dev.oum.oumlib.text.PresetRegistry;
+import dev.oum.oumlib.text.Text;
 import dev.oum.oumlib.text.placeholder.PlaceholderRegistry;
 import dev.oum.oumlib.text.placeholder.bridge.MiniPlaceholdersHelper;
 import dev.oum.oumlib.text.placeholder.bridge.PapiHelper;
@@ -45,6 +50,9 @@ public final class OumLib {
 
     private static PresetRegistry presetRegistry;
     private static PlaceholderRegistry placeholderRegistry;
+    private static HologramRegistry hologramRegistry;
+    private static RegionTracker regionTracker;
+    private static RecipeRegistry recipeRegistry;
     private static boolean initialized;
     private static boolean debugMode = false;
     private static BiConsumer<CommandContext, Throwable> commandErrorHandler = (context, ex) -> {
@@ -60,6 +68,7 @@ public final class OumLib {
     public static @NonNull InitBuilder init(Plugin p) {
         if (initialized) throw new IllegalStateException("OumLib already initialized.");
         plugin = p;
+        initialized = true;
         presetRegistry = new PresetRegistry();
         placeholderRegistry = new PlaceholderRegistry();
 
@@ -74,7 +83,13 @@ public final class OumLib {
         p.getServer().getMessenger().registerOutgoingPluginChannel(p, "oumlib:autocomplete");
 
         detectIntegrations(p);
-        initialized = true;
+        if (isPacketEventsPresent()) {
+            tryInitHolograms(p);
+        }
+        regionTracker = new RegionTracker(p);
+        regionTracker.start();
+        recipeRegistry = new RecipeRegistry();
+        VolatileData.initialize();
         return new InitBuilder();
     }
 
@@ -83,6 +98,7 @@ public final class OumLib {
         if (initialized) throw new IllegalStateException("OumLib already initialized.");
         proxyServer = server;
         velocityPlugin = pluginInstance;
+        initialized = true;
         presetRegistry = new PresetRegistry();
         placeholderRegistry = new PlaceholderRegistry();
 
@@ -114,7 +130,6 @@ public final class OumLib {
         });
 
         detectVelocityIntegrations(server);
-        initialized = true;
         return new InitBuilder();
     }
 
@@ -176,6 +191,19 @@ public final class OumLib {
         Scheduler.shutdownAll();
         MenuRegistry.shutdown();
         ConfigWatcher.shutdown();
+        if (hologramRegistry != null) {
+            hologramRegistry.stop();
+            hologramRegistry = null;
+        }
+        if (regionTracker != null) {
+            regionTracker.stop();
+            regionTracker = null;
+        }
+        if (recipeRegistry != null) {
+            recipeRegistry.unregisterAll();
+            recipeRegistry = null;
+        }
+        VolatileData.clearAll();
         plugin = null;
         proxyServer = null;
         velocityPlugin = null;
@@ -213,6 +241,45 @@ public final class OumLib {
 
     public static boolean isVelocity() {
         return proxyServer != null;
+    }
+
+    private static boolean isPacketEventsPresent() {
+        try {
+            Class.forName("com.github.retrooper.packetevents.PacketEvents");
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static void tryInitHolograms(Plugin p) {
+        try {
+            hologramRegistry = new HologramRegistry(p);
+            hologramRegistry.start();
+        } catch (Throwable t) {
+            logWarning("PacketEvents detected but failed to initialize HologramRegistry: " + t.getMessage());
+        }
+    }
+
+    public static HologramRegistry holograms() {
+        assertInit();
+        if (hologramRegistry == null)
+            throw new IllegalStateException("Hologram registry requires PacketEvents to be installed on Paper.");
+        return hologramRegistry;
+    }
+
+    public static RegionTracker regions() {
+        assertInit();
+        if (regionTracker == null)
+            throw new IllegalStateException("Region tracker is only available on Paper platform.");
+        return regionTracker;
+    }
+
+    public static RecipeRegistry recipes() {
+        assertInit();
+        if (recipeRegistry == null)
+            throw new IllegalStateException("Recipe registry is only available on Paper platform.");
+        return recipeRegistry;
     }
 
     public static @NonNull File getDataFolder() {
@@ -270,7 +337,12 @@ public final class OumLib {
     public static void logDebug(String message) {
         if (!debugMode) return;
         if (plugin != null) {
-            plugin.getSLF4JLogger().debug(message);
+            plugin.getSLF4JLogger().info("[DEBUG] " + message);
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (p.isOp() || p.hasPermission("oumlib.debug") || p.hasPermission(plugin.getName().toLowerCase(Locale.ROOT) + ".admin.debug") || p.hasPermission(plugin.getName().toLowerCase(Locale.ROOT) + ".admin")) {
+                    p.sendMessage(Text.parse("<color:#585b70>[<color:#fab387>DEBUG</color>]</color> <color:#9399b2>" + message + "</color>"));
+                }
+            }
         } else {
             Logger.getLogger("OumLib").log(Level.INFO, "[DEBUG] " + message);
         }

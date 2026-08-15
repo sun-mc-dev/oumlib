@@ -188,6 +188,71 @@ public final class Database {
         return filename;
     }
 
+    private static @NonNull RowMapper<?> buildMapper(@NonNull Class<?> type) {
+        if (type.isRecord()) {
+            RecordComponent[] components = type.getRecordComponents();
+            Class<?>[] paramTypes = new Class<?>[components.length];
+            for (int i = 0; i < components.length; i++) {
+                paramTypes[i] = components[i].getType();
+            }
+            Constructor<?> ctor;
+            try {
+                ctor = type.getDeclaredConstructor(paramTypes);
+                ctor.setAccessible(true);
+            } catch (NoSuchMethodException e) {
+                throw new IllegalStateException("No canonical constructor for record " + type.getName(), e);
+            }
+            return rs -> {
+                try {
+                    Set<String> available = columnLabels(rs);
+                    Object[] args = new Object[components.length];
+                    for (int i = 0; i < components.length; i++) {
+                        String name = components[i].getName();
+                        String label = available.contains(name) ? name
+                                : (available.contains(toSnakeCase(name)) ? toSnakeCase(name) : null);
+                        if (label == null) {
+                            OumLib.logDebug("Unmapped record component '" + name + "' for " + type.getName());
+                            args[i] = null;
+                        } else {
+                            args[i] = getValueFromResultSet(rs, label, components[i].getType());
+                        }
+                    }
+                    return ctor.newInstance(args);
+                } catch (ReflectiveOperationException e) {
+                    throw new SQLException("Failed to map row to record " + type.getName(), e);
+                }
+            };
+        }
+
+        Map<String, Field> fields = new HashMap<>();
+        for (Field field : type.getDeclaredFields()) {
+            field.setAccessible(true);
+            fields.put(field.getName(), field);
+        }
+        return rs -> {
+            try {
+                Object instance = type.getDeclaredConstructor().newInstance();
+                ResultSetMetaData md = rs.getMetaData();
+                int columns = md.getColumnCount();
+                for (int i = 1; i <= columns; i++) {
+                    String label = md.getColumnLabel(i);
+                    Field field = fields.get(label);
+                    if (field == null) {
+                        field = fields.get(toCamelCase(label));
+                    }
+                    if (field == null) {
+                        OumLib.logDebug("Unmapped column '" + label + "' for " + type.getName());
+                        continue;
+                    }
+                    field.set(instance, getValueFromResultSet(rs, label, field.getType()));
+                }
+                return instance;
+            } catch (ReflectiveOperationException e) {
+                throw new SQLException("Failed to map row to class " + type.getName(), e);
+            }
+        };
+    }
+
     public @NonNull Connection getConnection() throws SQLException {
         return dataSource.getConnection();
     }
@@ -210,7 +275,6 @@ public final class Database {
         this.slowQueryThresholdMs = ms;
     }
 
-    @CheckReturnValue
     public @NonNull Promise<Integer> executeUpdate(@NonNull String sql, Object... params) {
         return Promise.supplyVirtual(() -> {
             long start = System.currentTimeMillis();
@@ -231,9 +295,6 @@ public final class Database {
         });
     }
 
-    /**
-     * Executes a SELECT query asynchronously using virtual threads and returns mapped results.
-     */
     @CheckReturnValue
     public @NonNull Promise<List<Map<String, Object>>> executeQuery(@NonNull String sql, Object... params) {
         return Promise.supplyVirtual(() -> {
@@ -302,72 +363,6 @@ public final class Database {
         return (RowMapper<T>) mapperCache.computeIfAbsent(type, Database::buildMapper);
     }
 
-    private static @NonNull RowMapper<?> buildMapper(@NonNull Class<?> type) {
-        if (type.isRecord()) {
-            RecordComponent[] components = type.getRecordComponents();
-            Class<?>[] paramTypes = new Class<?>[components.length];
-            for (int i = 0; i < components.length; i++) {
-                paramTypes[i] = components[i].getType();
-            }
-            Constructor<?> ctor;
-            try {
-                ctor = type.getDeclaredConstructor(paramTypes);
-                ctor.setAccessible(true);
-            } catch (NoSuchMethodException e) {
-                throw new IllegalStateException("No canonical constructor for record " + type.getName(), e);
-            }
-            return rs -> {
-                try {
-                    Set<String> available = columnLabels(rs);
-                    Object[] args = new Object[components.length];
-                    for (int i = 0; i < components.length; i++) {
-                        String name = components[i].getName();
-                        String label = available.contains(name) ? name
-                                : (available.contains(toSnakeCase(name)) ? toSnakeCase(name) : null);
-                        if (label == null) {
-                            OumLib.logDebug("Unmapped record component '" + name + "' for " + type.getName());
-                            args[i] = null;
-                        } else {
-                            args[i] = getValueFromResultSet(rs, label, components[i].getType());
-                        }
-                    }
-                    return ctor.newInstance(args);
-                } catch (ReflectiveOperationException e) {
-                    throw new SQLException("Failed to map row to record " + type.getName(), e);
-                }
-            };
-        }
-
-        Map<String, Field> fields = new HashMap<>();
-        for (Field field : type.getDeclaredFields()) {
-            field.setAccessible(true);
-            fields.put(field.getName(), field);
-        }
-        return rs -> {
-            try {
-                Object instance = type.getDeclaredConstructor().newInstance();
-                ResultSetMetaData md = rs.getMetaData();
-                int columns = md.getColumnCount();
-                for (int i = 1; i <= columns; i++) {
-                    String label = md.getColumnLabel(i);
-                    Field field = fields.get(label);
-                    if (field == null) {
-                        field = fields.get(toCamelCase(label));
-                    }
-                    if (field == null) {
-                        OumLib.logDebug("Unmapped column '" + label + "' for " + type.getName());
-                        continue;
-                    }
-                    field.set(instance, getValueFromResultSet(rs, label, field.getType()));
-                }
-                return instance;
-            } catch (ReflectiveOperationException e) {
-                throw new SQLException("Failed to map row to class " + type.getName(), e);
-            }
-        };
-    }
-
-    @CheckReturnValue
     public @NonNull Promise<int[]> executeBatch(@NonNull String sql, @NonNull List<Object[]> parameterBatch) {
         return Promise.supplyVirtual(() -> {
             long start = System.currentTimeMillis();

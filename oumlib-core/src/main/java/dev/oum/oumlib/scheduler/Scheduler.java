@@ -123,9 +123,19 @@ public final class Scheduler {
         return adapter().runFor(entity, task);
     }
 
+    @Contract("_, _, _ -> new")
+    public static @NonNull TaskHandle runLaterFor(Object entity, Duration delay, Runnable task) {
+        return adapter().runLaterFor(entity, delay, task, null);
+    }
+
     @Contract("_, _, _, _ -> new")
     public static @NonNull TaskHandle runLaterFor(Object entity, Duration delay, Runnable task, Runnable retired) {
         return adapter().runLaterFor(entity, delay, task, retired);
+    }
+
+    @Contract("_, _, _ -> new")
+    public static @NonNull TaskHandle runLaterFor(Object entity, long ticks, Runnable task) {
+        return adapter().runLaterFor(entity, ticks, task, null);
     }
 
     @Contract("_, _, _, _ -> new")
@@ -133,9 +143,19 @@ public final class Scheduler {
         return adapter().runLaterFor(entity, ticks, task, retired);
     }
 
+    @Contract("_, _, _, _ -> new")
+    public static @NonNull TaskHandle runRepeatingFor(Object entity, Duration initialDelay, Duration period, Runnable task) {
+        return adapter().runRepeatingFor(entity, initialDelay, period, task, null);
+    }
+
     @Contract("_, _, _, _, _ -> new")
     public static @NonNull TaskHandle runRepeatingFor(Object entity, Duration initialDelay, Duration period, Runnable task, Runnable retired) {
         return adapter().runRepeatingFor(entity, initialDelay, period, task, retired);
+    }
+
+    @Contract("_, _, _, _ -> new")
+    public static @NonNull TaskHandle runRepeatingFor(Object entity, long initialTicks, long periodTicks, Runnable task) {
+        return adapter().runRepeatingFor(entity, initialTicks, periodTicks, task, null);
     }
 
     @Contract("_, _, _, _, _ -> new")

@@ -81,7 +81,9 @@ public final class BukkitSchedulerAdapter implements SchedulerAdapter {
     @Override
     public @NonNull TaskHandle runRepeating(long initialTicks, long periodTicks, Runnable task) {
         if (FOLIA) {
-            var scheduled = Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, t -> task.run(), initialTicks, periodTicks);
+            long delay = Math.max(1L, initialTicks);
+            long period = Math.max(1L, periodTicks);
+            var scheduled = Bukkit.getGlobalRegionScheduler().runAtFixedRate(plugin, t -> task.run(), delay, period);
             return new TaskHandle(scheduled::cancel, scheduled::isCancelled);
         }
         var scheduled = scheduler.runTaskTimer(plugin, task, initialTicks, periodTicks);
@@ -140,7 +142,9 @@ public final class BukkitSchedulerAdapter implements SchedulerAdapter {
     public @NonNull TaskHandle runRepeatingAt(Object location, long initialTicks, long periodTicks, Runnable task) {
         if (location instanceof Location loc) {
             if (FOLIA) {
-                var scheduled = Bukkit.getRegionScheduler().runAtFixedRate(plugin, loc, t -> task.run(), initialTicks, periodTicks);
+                long delay = Math.max(1L, initialTicks);
+                long period = Math.max(1L, periodTicks);
+                var scheduled = Bukkit.getRegionScheduler().runAtFixedRate(plugin, loc, t -> task.run(), delay, period);
                 return new TaskHandle(scheduled::cancel, scheduled::isCancelled);
             }
         }
@@ -164,7 +168,8 @@ public final class BukkitSchedulerAdapter implements SchedulerAdapter {
     public @NonNull TaskHandle runLaterFor(Object entity, long ticks, Runnable task, Runnable retired) {
         if (entity instanceof Entity ent) {
             if (FOLIA) {
-                var scheduled = ent.getScheduler().runDelayed(plugin, t -> task.run(), retired, ticks);
+                long delay = Math.max(1L, ticks);
+                var scheduled = ent.getScheduler().runDelayed(plugin, t -> task.run(), retired, delay);
                 if (scheduled != null) {
                     return new TaskHandle(scheduled::cancel, scheduled::isCancelled);
                 }
@@ -203,7 +208,9 @@ public final class BukkitSchedulerAdapter implements SchedulerAdapter {
     public @NonNull TaskHandle runRepeatingFor(Object entity, long initialTicks, long periodTicks, Runnable task, Runnable retired) {
         if (entity instanceof Entity ent) {
             if (FOLIA) {
-                var scheduled = ent.getScheduler().runAtFixedRate(plugin, t -> task.run(), retired, initialTicks, periodTicks);
+                long delay = Math.max(1L, initialTicks);
+                long period = Math.max(1L, periodTicks);
+                var scheduled = ent.getScheduler().runAtFixedRate(plugin, t -> task.run(), retired, delay, period);
                 if (scheduled != null) {
                     return new TaskHandle(scheduled::cancel, scheduled::isCancelled);
                 }

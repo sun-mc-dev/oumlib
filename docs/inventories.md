@@ -1,119 +1,199 @@
-# GUI & Chest Menus
+# Inventories
 
-OumLib includes a simple, lightweight inventory menu system for Paper/Bukkit. It uses layout patterns, item bindings, and click handlers to build custom menus.
+`dev.oum.oumlib.inventory` · Paper
 
 ---
 
-## Real-world Example: Virtual Coin Shop
+## ChestMenu
 
-Here is a virtual store interface that reads a player's balance dynamically, checks if they can afford an item via `EconomyBridge`, deducts the balance, updates the menu state placeholders, and plays sound effects:
+Build a chest GUI with a pattern layout:
 
 ```java
-import dev.oum.oumlib.bridge.economy.EconomyBridge;
-import dev.oum.oumlib.effect.Effects;
-import dev.oum.oumlib.inventory.ChestMenu;
-import dev.oum.oumlib.inventory.ItemBuilder;
-import dev.oum.oumlib.text.Text;
-import org.bukkit.Material;
-import org.bukkit.Sound;
-import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
+ChestMenu.builder()
+    .title("<dark_gray>Warps</dark_gray>")
+    .rows(3)
+    .pattern(
+        "#########",
+        "# A B C #",
+        "#########"
+    )
+    .bind('#', ItemBuilder.of(Material.GRAY_STAINED_GLASS_PANE).name(" ").build())
+    .bind('A', ItemBuilder.of(Material.GRASS_BLOCK).name("<green>Spawn").build())
+    .bind('B', ItemBuilder.of(Material.NETHERRACK).name("<red>Nether").build())
+    .bind('C', ItemBuilder.of(Material.END_STONE).name("<dark_purple>End").build())
+    .onClick('A', click -> click.player().performCommand("warp spawn"))
+    .onClick('B', click -> click.player().performCommand("warp nether"))
+    .onClick('C', click -> click.player().performCommand("warp end"))
+    .build()
+    .open(player);
+```
 
-public final class CoinShopMenu {
-    public static void open(Player player) {
-        ChestMenu.builder()
-            .title("<dark_gray>Coin Shop | Coins: {coins_balance}</dark_gray>")
-            .rows(3)
-            .state("coins_balance", p -> (int) EconomyBridge.balance(p))
-            .pattern(
-                "#########",
-                "#  G S  #",
-                "#########"
-            )
-            .bind('#', ItemBuilder.of(Material.GRAY_STAINED_GLASS_PANE).name(" ").build())
-            .bind('G', () -> ItemBuilder.of(Material.GOLD_INGOT).name("<gold>Gold Pack</gold>").lore("<yellow>Price: 100 points</yellow>").build())
-            .bind('S', () -> ItemBuilder.of(Material.NETHER_STAR).name("<aqua>Server Booster</aqua>").lore("<yellow>Price: 500 points</yellow>").build())
-            .onClick('G', click -> {
-                double balance = EconomyBridge.balance(click.player());
-                if (balance < 100.0) {
-                    Text.send(click.player(), "<red>Insufficient points!</red>");
-                    return;
-                }
-                EconomyBridge.withdraw(click.player(), 100.0);
-                click.player().getInventory().addItem(new ItemStack(Material.GOLD_INGOT, 16));
-                
-                int newBalance = (int) EconomyBridge.balance(click.player());
-                click.menu().updateState(click.player(), "coins_balance", newBalance);
-                Effects.sound(Sound.ENTITY_EXPERIENCE_ORB_PICKUP).volume(1.0F).pitch(1.0F).play(click.player());
-            })
-            .onClick('S', click -> {
-                double balance = EconomyBridge.balance(click.player());
-                if (balance < 500.0) {
-                    Text.send(click.player(), "<red>Insufficient points!</red>");
-                    return;
-                }
-                EconomyBridge.withdraw(click.player(), 500.0);
-                
-                int newBalance = (int) EconomyBridge.balance(click.player());
-                click.menu().updateState(click.player(), "coins_balance", newBalance);
-                Effects.sound(Sound.UI_TOAST_CHALLENGE_COMPLETE).volume(1.0F).pitch(1.0F).play(click.player());
-            })
-            .build()
-            .open(player);
-    }
-}
+### Click Handlers
+
+Each bound character can have a click handler. The `ClickContext` gives you:
+
+```java
+.onClick('X', click -> {
+    Player p = click.player();          // the player who clicked
+    ClickAction action = click.action(); // LEFT, RIGHT, SHIFT_LEFT, etc.
+    ItemStack item = click.item();      // the clicked item
+})
+```
+
+### Close Handler
+
+```java
+.onClose(player -> {
+    player.sendMessage("Menu closed!");
+})
+```
+
+### Prevent Taking Items
+
+By default, players can't take items from the menu. The whole inventory is locked.
+
+---
+
+## PaginatedMenu
+
+For when you have a list of items and want pages:
+
+```java
+List<ItemStack> items = getShopItems(); // your list
+
+PaginatedMenu.builder()
+    .title("<dark_gray>Shop - Page <page>/<pages></dark_gray>")
+    .rows(6)
+    .items(items)
+    .contentSlots(Layout.rectangle(1, 1, 4, 7)) // rows 1-4, columns 1-7
+    .previousButton(ItemBuilder.of(Material.ARROW).name("<yellow>Previous Page").build(), 45)
+    .nextButton(ItemBuilder.of(Material.ARROW).name("<yellow>Next Page").build(), 53)
+    .border(ItemBuilder.of(Material.BLACK_STAINED_GLASS_PANE).name(" ").build())
+    .onItemClick((click, item) -> {
+        click.player().sendMessage("You clicked: " + item.getType());
+    })
+    .build()
+    .open(player);
+```
+
+The `<page>` and `<pages>` placeholders in the title get replaced automatically.
+
+---
+
+## ItemBuilder
+
+Fluent builder for creating items:
+
+```java
+ItemStack sword = ItemBuilder.of(Material.DIAMOND_SWORD)
+    .name("<gradient:aqua:blue>Frost Blade</gradient>")
+    .lore(
+        "<gray>A blade forged in ice.",
+        "",
+        "<blue>+15 Attack Damage"
+    )
+    .enchant(Enchantment.SHARPNESS, 5)
+    .unbreakable(true)
+    .modelData(1001)
+    .amount(1)
+    .glow(true)
+    .build();
+```
+
+### ItemBuilder Methods
+
+| Method                     | What it does                               |
+|:---------------------------|:-------------------------------------------|
+| `.name(miniMessage)`       | Display name                               |
+| `.lore(lines...)`          | Lore lines (MiniMessage)                   |
+| `.enchant(enchant, level)` | Add enchantment                            |
+| `.unbreakable(bool)`       | Set unbreakable                            |
+| `.modelData(int)`          | Custom model data                          |
+| `.amount(int)`             | Stack size                                 |
+| `.glow(bool)`              | Enchantment glint without visible enchants |
+| `.flags(flags...)`         | Item flags                                 |
+| `.rarity(ItemRarity)`      | Item rarity                                |
+| `.maxStackSize(int)`       | Override max stack size                    |
+| `.skull(player)`           | Player head                                |
+| `.skullTexture(base64)`    | Custom skull texture                       |
+| `.skullUrl(url)`           | Skull from URL                             |
+| `.pdc(key, value)`         | Store persistent data                      |
+| `.pdc(key, component)`     | Store a Component in PDC                   |
+| `.meta(consumer)`          | Modify raw ItemMeta                        |
+| `.build()`                 | Creates the ItemStack                      |
+
+### Skull Heads
+
+```java
+// Player head
+ItemBuilder.of(Material.PLAYER_HEAD).skull(player).build();
+
+// Custom texture via base64
+ItemBuilder.of(Material.PLAYER_HEAD)
+    .skullTexture("eyJ0ZXh0dXJlcyI6ey...")
+    .build();
+
+// Custom texture via URL
+ItemBuilder.of(Material.PLAYER_HEAD)
+    .skullUrl("https://textures.minecraft.net/texture/abc123")
+    .build();
 ```
 
 ---
 
-## Real-world Example: Server Selector
+## DataComponents
 
-Here is a multi-lobby server selector utilizing the `PaginatedMenu` controller to automatically distribute servers across pages:
+Paper 1.20.6+ data component access:
 
 ```java
-import dev.oum.oumlib.inventory.ItemBuilder;
-import dev.oum.oumlib.inventory.PaginatedMenu;
-import dev.oum.oumlib.util.Proxy;
-import org.bukkit.Material;
-import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
-import java.util.ArrayList;
-import java.util.List;
-
-public final class LobbySelector {
-    public static void open(Player player) {
-        List<ItemStack> servers = new ArrayList<>();
-        List<String> targetServers = List.of("lobby-1", "lobby-2", "lobby-3", "lobby-4");
-
-        for (String server : targetServers) {
-            int online = Proxy.getPlayerCount(server);
-            servers.add(ItemBuilder.of(Material.BEACON)
-                .name("<green>" + server + "</green>")
-                .lore("<gray>Online Players: " + online + "</gray>", "<yellow>Click to connect!</yellow>")
-                .build());
-        }
-
-        PaginatedMenu menu = PaginatedMenu.builder()
-            .title("<dark_gray>Lobby List (<page>/<total>)</dark_gray>")
-            .rows(4)
-            .contentSlots(10, 11, 12, 13, 14, 15, 16)
-            .items(servers)
-            .onClick((context, item, index) -> {
-                String targetServer = targetServers.get(index);
-                player.sendMessage("Connecting to " + targetServer + "...");
-                player.closeInventory();
-            })
-            .build();
-
-        menu.open(player);
-    }
-}
+DataComponents.maxStackSize(item, 99);
+DataComponents.rarity(item, ItemRarity.EPIC);
+DataComponents.enchantGlint(item, true);
+DataComponents.fireResistant(item, true);
+DataComponents.hideTooltip(item, true);
+DataComponents.unbreakable(item, true);
 ```
 
 ---
 
-## Click Protection Safeguards
+## ItemSerializer
 
-To prevent GUI exploits, OumLib implements two safeguards internally:
-1. **Auto-Cancellation**: Clicks on items inside the menu container are cancelled (`event.setCancelled(true)`) to prevent players from taking layout items.
-2. **Player Inventory Isolation**: Clicks within the player's own inventory hotbar do not trigger GUI slot click handlers, preventing item duplication.
+Convert items to/from Base64 for storage:
+
+```java
+String encoded = ItemSerializer.toBase64(itemStack);
+ItemStack decoded = ItemSerializer.fromBase64(encoded);
+```
+
+Also works with arrays:
+
+```java
+String encoded = ItemSerializer.arrayToBase64(itemArray);
+ItemStack[] decoded = ItemSerializer.arrayFromBase64(encoded);
+```
+
+---
+
+## PotionSerializer
+
+Serialize/deserialize potion effects:
+
+```java
+String json = PotionSerializer.serialize(potionEffect);
+PotionEffect effect = PotionSerializer.deserialize(json);
+
+// Lists
+String json = PotionSerializer.serializeList(effects);
+List<PotionEffect> effects = PotionSerializer.deserializeList(json);
+```
+
+---
+
+## Layout
+
+Helper for generating slot lists:
+
+```java
+List<Integer> slots = Layout.rectangle(startRow, startCol, endRow, endCol);
+List<Integer> border = Layout.border(rows);
+```

@@ -5,14 +5,15 @@ import dev.oum.oumlib.config.YamlParser;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver;
-
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import java.io.File;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -35,14 +36,24 @@ public final class Localization {
             langFolder.mkdirs();
         }
 
-        String defaultFileName = "lang/" + defaultLang + ".yml";
-        File defaultFile = new File(dataFolder, defaultFileName);
-        if (!defaultFile.exists()) {
-            try (InputStream in = Localization.class.getClassLoader().getResourceAsStream(defaultFileName)) {
-                if (in != null) {
-                    Files.copy(in, defaultFile.toPath());
+        List<String> bundledLangs = List.of("en", "es", "ko", "de", "fr", "ja", "it");
+        for (String lang : bundledLangs) {
+            String filePath = "lang/" + lang + ".yml";
+            File targetFile = new File(dataFolder, filePath);
+            if (!targetFile.exists()) {
+                InputStream rawIn = null;
+                if (OumLib.isPaper() && OumLib.plugin() != null) {
+                    rawIn = OumLib.plugin().getResource(filePath);
                 }
-            } catch (Exception ignored) {
+                if (rawIn == null) {
+                    rawIn = Localization.class.getClassLoader().getResourceAsStream(filePath);
+                }
+                if (rawIn != null) {
+                    try (InputStream in = rawIn) {
+                        Files.copy(in, targetFile.toPath());
+                    } catch (Exception ignored) {
+                    }
+                }
             }
         }
 
@@ -70,6 +81,11 @@ public final class Localization {
             Object value = entry.getValue();
             if (value instanceof Map<?, ?> subMap) {
                 flatten(key, (Map<String, Object>) subMap, target);
+            } else if (value instanceof List<?> list) {
+                target.put(key, String.valueOf(value));
+                for (int i = 0; i < list.size(); i++) {
+                    target.put(key + "." + i, String.valueOf(list.get(i)));
+                }
             } else if (value != null) {
                 target.put(key, String.valueOf(value));
             }
@@ -88,31 +104,48 @@ public final class Localization {
         return MiniMessage.miniMessage().deserialize(message, resolvers);
     }
 
-    @SuppressWarnings("unchecked")
-    public static @NonNull Component translateFor(@NonNull Object playerObj, @NonNull String key, TagResolver... resolvers) {
-        String locale = defaultLang;
-        try {
-            Class<?> bukkitPlayerClass = Class.forName("org.bukkit.entity.Player");
-            if (bukkitPlayerClass.isInstance(playerObj)) {
-                Locale loc = (Locale) playerObj.getClass().getMethod("locale").invoke(playerObj);
-                if (loc != null) {
-                    locale = loc.getLanguage();
-                }
-            } else {
-                Class<?> velocityPlayerClass = Class.forName("com.velocitypowered.api.proxy.Player");
-                if (velocityPlayerClass.isInstance(playerObj)) {
-                    Object profile = playerObj.getClass().getMethod("getPlayerProfile").invoke(playerObj);
-                    if (profile != null) {
-                        Optional<Locale> optLocale = (Optional<Locale>) profile.getClass().getMethod("getLocale").invoke(profile);
-                        if (optLocale != null && optLocale.isPresent()) {
-                            locale = optLocale.get().getLanguage();
-                        }
-                    }
-                }
-            }
-        } catch (Exception ignored) {
-        }
+    public static @NonNull Component translateFor(@Nullable Object playerObj, @NonNull String key, TagResolver... resolvers) {
+        String locale = resolveLocale(playerObj);
         return translateFor(locale, key, resolvers);
+    }
+
+    public static @NonNull List<Component> translateList(@NonNull String key, TagResolver... resolvers) {
+        return translateListFor(defaultLang, key, resolvers);
+    }
+
+    public static @NonNull List<Component> translateListFor(@Nullable Object playerObj, @NonNull String key, TagResolver... resolvers) {
+        String locale = resolveLocale(playerObj);
+        List<Component> result = new ArrayList<>();
+        int index = 0;
+        while (true) {
+            String raw = getRaw(locale, key + "." + index);
+            if (raw == null) break;
+            result.add(MiniMessage.miniMessage().deserialize(raw, resolvers));
+            index++;
+        }
+        return result;
+    }
+
+    public static @Nullable String getRaw(@NonNull String key) {
+        return getRaw(defaultLang, key);
+    }
+
+    public static @Nullable String getRaw(@Nullable Object playerObj, @NonNull String key) {
+        if (playerObj instanceof String langStr) {
+            return getRaw(langStr, key);
+        }
+        String locale = resolveLocale(playerObj);
+        return getRaw(locale, key);
+    }
+
+    public static @NonNull String getRawOrDefault(@Nullable Object playerObj, @NonNull String key, @NonNull String fallback) {
+        String val = getRaw(playerObj, key);
+        return val != null ? val : fallback;
+    }
+
+    public static @NonNull String getRawOrDefault(@NonNull String key, @NonNull String fallback) {
+        String val = getRaw(defaultLang, key);
+        return val != null ? val : fallback;
     }
 
     public static @Nullable String getRaw(@NonNull String lang, @NonNull String key) {
@@ -122,9 +155,17 @@ public final class Localization {
             return map.get(key);
         }
         Map<String, String> defaultMap = translations.get(defaultLang);
-        if (defaultMap != null) {
+        if (defaultMap != null && defaultMap.containsKey(key)) {
             return defaultMap.get(key);
         }
+        Map<String, String> enMap = translations.get("en");
+        if (enMap != null && enMap.containsKey(key)) {
+            return enMap.get(key);
+        }
         return null;
+    }
+
+    private static @NonNull String resolveLocale(@Nullable Object playerObj) {
+        return defaultLang;
     }
 }

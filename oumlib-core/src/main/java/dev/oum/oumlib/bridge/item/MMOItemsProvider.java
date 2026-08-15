@@ -22,7 +22,6 @@ public final class MMOItemsProvider implements ItemProvider {
             Class<?> mmoItemsClass = Class.forName("net.Indyuce.mmoitems.MMOItems");
             Object plugin = mmoItemsClass.getField("plugin").get(null);
 
-            // Format can be "TYPE:ID" (e.g. "SWORD:EXCALIBUR")
             String[] parts = id.split(":", 2);
             if (parts.length == 2) {
                 Class<?> typeClass = Class.forName("net.Indyuce.mmoitems.api.Type");

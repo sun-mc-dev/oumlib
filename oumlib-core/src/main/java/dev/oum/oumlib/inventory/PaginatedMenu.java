@@ -17,10 +17,7 @@ import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.Nullable;
 import org.jspecify.annotations.NonNull;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
@@ -36,6 +33,7 @@ public final class PaginatedMenu implements Menu {
     private final Function<Integer, ItemStack> prevButton;
     private final Function<Integer, ItemStack> nextButton;
     private final Function<Player, List<ItemStack>> itemsSupplier;
+    private final Function<Player, ItemStack> borderSupplier;
     private final PaginatedClickHandler clickHandler;
     private final Map<UUID, Integer> pages = new ConcurrentHashMap<>();
     private final Map<UUID, Inventory> open = new ConcurrentHashMap<>();
@@ -46,13 +44,29 @@ public final class PaginatedMenu implements Menu {
     private PaginatedMenu(@NonNull Builder builder) {
         this.title = builder.title;
         this.rows = builder.rows;
-        this.contentSlots = builder.contentSlots;
+        this.contentSlots = builder.contentSlots != null ? builder.contentSlots : defaultContentSlots(builder.rows);
         this.prevSlot = builder.prevSlot;
         this.nextSlot = builder.nextSlot;
         this.prevButton = builder.prevButton;
         this.nextButton = builder.nextButton;
         this.itemsSupplier = builder.itemsSupplier;
+        this.borderSupplier = builder.borderSupplier;
         this.clickHandler = builder.clickHandler;
+    }
+
+    private static int[] defaultContentSlots(int rows) {
+        if (rows <= 2) {
+            int[] slots = new int[rows * 9];
+            for (int i = 0; i < slots.length; i++) slots[i] = i;
+            return slots;
+        }
+        List<Integer> slots = new ArrayList<>();
+        for (int r = 1; r < rows - 1; r++) {
+            for (int c = 1; c < 8; c++) {
+                slots.add(r * 9 + c);
+            }
+        }
+        return slots.stream().mapToInt(Integer::intValue).toArray();
     }
 
     @Contract(" -> new")
@@ -111,7 +125,8 @@ public final class PaginatedMenu implements Menu {
             int page = pages.getOrDefault(player.getUniqueId(), 1);
             String resolvedTitle = title
                     .replace("<page>", String.valueOf(page))
-                    .replace("<total>", String.valueOf(totalPages(player)));
+                    .replace("<total>", String.valueOf(totalPages(player)))
+                    .replace("<pages>", String.valueOf(totalPages(player)));
             var titleComponent = MM.deserialize(resolvedTitle);
 
             Inventory inv = open.get(player.getUniqueId());
@@ -139,6 +154,22 @@ public final class PaginatedMenu implements Menu {
 
     private void populateItems(@NonNull Player player, @NonNull Inventory inv, int page) {
         inv.clear();
+
+        if (borderSupplier != null) {
+            ItemStack border = borderSupplier.apply(player);
+            if (border != null) {
+                Set<Integer> reserved = new HashSet<>();
+                for (int slot : contentSlots) reserved.add(slot);
+                reserved.add(prevSlot);
+                reserved.add(nextSlot);
+                for (int s = 0; s < rows * 9; s++) {
+                    if (!reserved.contains(s)) {
+                        inv.setItem(s, border);
+                    }
+                }
+            }
+        }
+
         List<ItemStack> list = itemsSupplier.apply(player);
         if (list == null) list = List.of();
         int start = (page - 1) * contentSlots.length;
@@ -146,12 +177,13 @@ public final class PaginatedMenu implements Menu {
             int idx = start + i;
             if (idx < list.size()) inv.setItem(contentSlots[i], list.get(idx));
         }
+
         ItemStack prev = page > 1
                 ? prevButton.apply(page)
-                : ItemBuilder.of(Material.GRAY_STAINED_GLASS_PANE).name("<gray>Previous").build();
+                : (borderSupplier != null ? borderSupplier.apply(player) : ItemBuilder.of(Material.GRAY_STAINED_GLASS_PANE).name(" ").build());
         ItemStack next = page < totalPages(player)
                 ? nextButton.apply(page)
-                : ItemBuilder.of(Material.GRAY_STAINED_GLASS_PANE).name("<gray>Next").build();
+                : (borderSupplier != null ? borderSupplier.apply(player) : ItemBuilder.of(Material.GRAY_STAINED_GLASS_PANE).name(" ").build());
         inv.setItem(prevSlot, prev);
         inv.setItem(nextSlot, next);
     }
@@ -241,9 +273,10 @@ public final class PaginatedMenu implements Menu {
     public static final class Builder {
 
         private Function<Player, List<ItemStack>> itemsSupplier = p -> new ArrayList<>();
+        private Function<Player, ItemStack> borderSupplier;
         private String title = "<gray>Page <page>/<total>";
         private int rows = 6;
-        private int[] contentSlots = {10, 11, 12, 13, 14, 15, 16};
+        private int[] contentSlots;
         private int prevSlot = 45;
         private int nextSlot = 53;
         private Function<Integer, ItemStack> prevButton = page -> ItemBuilder.of(Material.ARROW)
@@ -253,7 +286,6 @@ public final class PaginatedMenu implements Menu {
         private PaginatedClickHandler clickHandler;
 
         @CheckReturnValue
-        @SuppressWarnings("unused")
         public @NonNull Builder onClick(@NonNull PaginatedClickHandler handler) {
             this.clickHandler = handler;
             return this;
@@ -278,16 +310,42 @@ public final class PaginatedMenu implements Menu {
         }
 
         @CheckReturnValue
+        public @NonNull Builder border(@NonNull ItemStack item) {
+            this.borderSupplier = player -> item;
+            return this;
+        }
+
+        @CheckReturnValue
+        public @NonNull Builder border(@NonNull Function<@NonNull Player, @NonNull ItemStack> supplier) {
+            this.borderSupplier = supplier;
+            return this;
+        }
+
+        @CheckReturnValue
         public @NonNull Builder previousButton(@NonNull Function<@NonNull Integer, @NonNull ItemStack> fn, int slot) {
-            prevButton = fn;
-            prevSlot = slot;
+            this.prevButton = fn;
+            this.prevSlot = slot;
+            return this;
+        }
+
+        @CheckReturnValue
+        public @NonNull Builder previousButton(@NonNull ItemStack item, int slot) {
+            this.prevButton = page -> item;
+            this.prevSlot = slot;
             return this;
         }
 
         @CheckReturnValue
         public @NonNull Builder nextButton(@NonNull Function<@NonNull Integer, @NonNull ItemStack> fn, int slot) {
-            nextButton = fn;
-            nextSlot = slot;
+            this.nextButton = fn;
+            this.nextSlot = slot;
+            return this;
+        }
+
+        @CheckReturnValue
+        public @NonNull Builder nextButton(@NonNull ItemStack item, int slot) {
+            this.nextButton = page -> item;
+            this.nextSlot = slot;
             return this;
         }
 

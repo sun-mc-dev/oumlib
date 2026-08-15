@@ -43,6 +43,11 @@ public final class ItemBridge {
             registerProvider(new HeadDatabaseProvider());
         } catch (Throwable ignored) {
         }
+
+        try {
+            registerProvider(new TextureHeadProvider());
+        } catch (Throwable ignored) {
+        }
     }
 
     private ItemBridge() {
