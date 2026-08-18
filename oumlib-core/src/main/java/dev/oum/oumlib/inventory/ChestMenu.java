@@ -398,6 +398,50 @@ public final class ChestMenu implements Menu {
         }
 
         @CheckReturnValue
+        public @NonNull Builder bindBorders(@Nullable ItemStack item, char... ignoredKeys) {
+            if (layout != null) {
+                Set<Character> ignored = new HashSet<>();
+                for (char c : ignoredKeys) {
+                    ignored.add(c);
+                }
+                for (char c : layout.characters()) {
+                    if (!ignored.contains(c)) {
+                        layout.bind(c, item);
+                    }
+                }
+            }
+            return this;
+        }
+
+        @CheckReturnValue
+        public @NonNull Builder bindBorders(@NonNull Supplier<@Nullable ItemStack> supplier, char... ignoredKeys) {
+            if (layout != null) {
+                Set<Character> ignored = new HashSet<>();
+                for (char c : ignoredKeys) {
+                    ignored.add(c);
+                }
+                for (char c : layout.characters()) {
+                    if (!ignored.contains(c)) {
+                        layout.bind(c, supplier);
+                    }
+                }
+            }
+            return this;
+        }
+
+        @CheckReturnValue
+        public @NonNull Builder fill(@Nullable ItemStack item) {
+            int totalSlots = rows * 9;
+            for (int i = 0; i < totalSlots; i++) {
+                final int slot = i;
+                if (!slotItems.containsKey(slot)) {
+                    slotItems.put(slot, player -> item);
+                }
+            }
+            return this;
+        }
+
+        @CheckReturnValue
         public @NonNull Builder item(int slot, @Nullable ItemStack item) {
             this.slotItems.put(slot, player -> item);
             return this;

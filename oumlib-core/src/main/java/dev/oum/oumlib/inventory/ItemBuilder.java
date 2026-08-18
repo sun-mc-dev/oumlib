@@ -66,11 +66,17 @@ public final class ItemBuilder {
     @Contract("_ -> new")
     @CheckReturnValue
     public static @NonNull ItemBuilder from(@NonNull String identifier) {
+        return from(identifier, Material.STONE);
+    }
+
+    @Contract("_, _ -> new")
+    @CheckReturnValue
+    public static @NonNull ItemBuilder from(@NonNull String identifier, @NonNull Material fallback) {
         return ItemBridge.getItem(identifier)
                 .map(ItemBuilder::of)
                 .orElseGet(() -> {
                     Material mat = Material.matchMaterial(identifier);
-                    return of(mat != null ? mat : Material.STONE);
+                    return of(mat != null ? mat : fallback);
                 });
     }
 
