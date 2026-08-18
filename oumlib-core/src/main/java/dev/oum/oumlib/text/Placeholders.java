@@ -17,16 +17,6 @@ public final class Placeholders {
     private Placeholders() {
     }
 
-    @FunctionalInterface
-    public interface PlaceholderSupplier {
-        String get(Object player);
-    }
-
-    @FunctionalInterface
-    public interface ConfigPlaceholderSupplier<T> {
-        String get(Object player, T config);
-    }
-
     public static void register(@NonNull String key, @NonNull PlaceholderSupplier supplier) {
         Objects.requireNonNull(key, "key");
         Objects.requireNonNull(supplier, "supplier");
@@ -88,5 +78,15 @@ public final class Placeholders {
                 .replaceAll("([a-z])([A-Z])", "$1-$2")
                 .replaceAll("([A-Z]+)([A-Z][a-z])", "$1-$2")
                 .toLowerCase();
+    }
+
+    @FunctionalInterface
+    public interface PlaceholderSupplier {
+        String get(Object player);
+    }
+
+    @FunctionalInterface
+    public interface ConfigPlaceholderSupplier<T> {
+        String get(Object player, T config);
     }
 }

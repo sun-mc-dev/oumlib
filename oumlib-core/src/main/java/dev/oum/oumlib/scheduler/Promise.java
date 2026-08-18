@@ -5,6 +5,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
@@ -21,6 +22,20 @@ public final class Promise<T> {
 
     public static <U> @NonNull Promise<U> fromCompletableFuture(@NonNull CompletableFuture<U> future) {
         return new Promise<>(future);
+    }
+
+    public static <U> @NonNull Promise<U> completed(@Nullable U value) {
+        return new Promise<>(CompletableFuture.completedFuture(value));
+    }
+
+    public static @NonNull Promise<Void> empty() {
+        return new Promise<>(CompletableFuture.completedFuture(null));
+    }
+
+    public static <U> @NonNull Promise<U> failed(@NonNull Throwable throwable) {
+        CompletableFuture<U> fut = new CompletableFuture<>();
+        fut.completeExceptionally(throwable);
+        return new Promise<>(fut);
     }
 
     @Contract("_ -> new")
@@ -74,7 +89,7 @@ public final class Promise<T> {
         return new Promise<>(fut);
     }
 
-    public static <U> @NonNull Promise<List<U>> all(@NonNull List<Promise<U>> promises) {
+    public static <U> @NonNull Promise<List<U>> all(@NonNull Collection<Promise<U>> promises) {
         CompletableFuture<?>[] futures = promises.stream()
                 .map(Promise::toCompletableFuture)
                 .toArray(CompletableFuture[]::new);
@@ -86,6 +101,13 @@ public final class Promise<T> {
             return results;
         });
         return new Promise<>(combined);
+    }
+
+    public static @NonNull Promise<Void> allVoid(@NonNull Collection<? extends Promise<?>> promises) {
+        CompletableFuture<?>[] futures = promises.stream()
+                .map(Promise::toCompletableFuture)
+                .toArray(CompletableFuture[]::new);
+        return new Promise<>(CompletableFuture.allOf(futures));
     }
 
     public <U> @NonNull Promise<U> map(@NonNull Function<T, U> mapper) {
@@ -102,6 +124,10 @@ public final class Promise<T> {
 
     public <U> @NonNull Promise<U> thenCompose(@NonNull Function<T, Promise<U>> mapper) {
         return flatMap(mapper);
+    }
+
+    public @NonNull Promise<Void> asVoid() {
+        return map(ignored -> null);
     }
 
     public @NonNull Promise<T> exceptionally(@NonNull Function<Throwable, T> recover) {

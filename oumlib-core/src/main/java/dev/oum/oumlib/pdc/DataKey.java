@@ -116,7 +116,6 @@ public record DataKey<P, C>(
             return new Location(w, x, y, z, yaw, pitch);
         }
     };
-    private static final Gson GSON = new Gson();
     public static final PersistentDataType<String, List<String>> STRING_LIST_TYPE = new PersistentDataType<>() {
         @Override
         public @NonNull Class<String> getPrimitiveType() {
@@ -140,6 +139,7 @@ public record DataKey<P, C>(
             return GSON.fromJson(primitive, List.class);
         }
     };
+    private static final Gson GSON = new Gson();
 
     public static @NonNull DataKey<String, String> string(@NonNull NamespacedKey key) {
         return new DataKey<>(key, PersistentDataType.STRING);

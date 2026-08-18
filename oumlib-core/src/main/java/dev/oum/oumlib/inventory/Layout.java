@@ -6,10 +6,7 @@ import org.bukkit.inventory.ItemStack;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -38,6 +35,14 @@ public final class Layout {
     public Layout bind(char key, @NonNull Function<@NonNull Player, @Nullable ItemStack> function) {
         bindings.put(key, function);
         return this;
+    }
+
+    public @NonNull String[] pattern() {
+        return pattern;
+    }
+
+    public @NonNull Set<Character> characters() {
+        return slotMap.keySet();
     }
 
     public List<Integer> slotsFor(char key) {
